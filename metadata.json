@@ -1,0 +1,7 @@
+{
+  "name": "JavaQuest",
+  "description": "Free, interactive, and gamified programming platform featuring Java, Python, JavaScript, TypeScript, C++, Go, and Rust with roadmaps, post-lesson tests, code challenges, and AI tutoring.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
