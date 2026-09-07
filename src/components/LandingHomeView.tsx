@@ -34,7 +34,7 @@ export const LandingHomeView: React.FC<LandingHomeViewProps> = ({
   ];
 
   return (
-    <div className="max-w-6xl mx-auto py-12 px-4 sm:px-6 space-y-20">
+    <div className="max-w-6xl mx-auto py-12 px-4 sm:px-6 space-y-20 overflow-x-hidden">
       {/* Hero Section */}
       <div className="text-center max-w-3xl mx-auto space-y-6 pt-4">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400 text-xs font-bold shadow-xs">

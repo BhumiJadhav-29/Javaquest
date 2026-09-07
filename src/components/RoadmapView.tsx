@@ -58,36 +58,36 @@ export const RoadmapView: React.FC<RoadmapViewProps> = ({
   const getOffsetClass = (idx: number) => {
     const pattern = [
       "translate-x-0",
-      "translate-x-8 sm:translate-x-12",
-      "translate-x-12 sm:translate-x-20",
-      "translate-x-6 sm:translate-x-10",
-      "-translate-x-6 sm:-translate-x-10",
-      "-translate-x-12 sm:-translate-x-20",
-      "-translate-x-8 sm:-translate-x-12",
+      "translate-x-4 sm:translate-x-12",
+      "translate-x-6 sm:translate-x-20",
+      "translate-x-3 sm:translate-x-10",
+      "-translate-x-3 sm:-translate-x-10",
+      "-translate-x-6 sm:-translate-x-20",
+      "-translate-x-4 sm:-translate-x-12",
     ];
     return pattern[idx % pattern.length];
   };
 
   return (
-    <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6">
+    <div className="max-w-3xl mx-auto py-4 sm:py-8 px-3 sm:px-6 overflow-x-hidden">
       {/* Course Banner */}
-      <div className="mb-10 p-6 rounded-3xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 text-white shadow-lg shadow-orange-500/15 relative overflow-hidden">
-        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur border border-white/30 flex items-center justify-center text-3xl shadow-inner">
+      <div className="mb-6 sm:mb-10 p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 text-white shadow-lg shadow-orange-500/15 relative overflow-hidden">
+        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur border border-white/30 flex items-center justify-center text-2xl sm:text-3xl shadow-inner shrink-0">
               {course.icon}
             </div>
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20">
+              <div className="flex items-center gap-2 mb-0.5 sm:mb-1">
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20">
                   {course.category}
                 </span>
-                <span className="text-xs font-semibold text-orange-100">
+                <span className="text-[11px] sm:text-xs font-semibold text-orange-100">
                   • {course.difficulty}
                 </span>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight">{course.title}</h1>
-              <p className="text-sm text-orange-50 mt-1 max-w-xl leading-relaxed">
+              <h1 className="text-xl sm:text-3xl font-black tracking-tight">{course.title}</h1>
+              <p className="text-xs sm:text-sm text-orange-50 mt-0.5 sm:mt-1 max-w-xl leading-relaxed">
                 {course.description}
               </p>
             </div>
@@ -95,20 +95,20 @@ export const RoadmapView: React.FC<RoadmapViewProps> = ({
         </div>
 
         {/* Course Progress Mini Bar */}
-        <div className="mt-6 pt-4 border-t border-white/20 flex items-center justify-between gap-4 text-xs font-bold text-orange-100">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4" />
-            <span>Interactive Duolingo-Style Quest Path</span>
+        <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-white/20 flex items-center justify-between gap-2 text-[11px] sm:text-xs font-bold text-orange-100">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="truncate">Interactive Quest Path</span>
           </div>
-          <div>
+          <div className="shrink-0">
             {course.modules.flatMap((m) => m.lessons).filter((l) => user.completedLessons.includes(l.id)).length} /{" "}
-            {course.modules.flatMap((m) => m.lessons).length} Lessons Completed
+            {course.modules.flatMap((m) => m.lessons).length} Completed
           </div>
         </div>
       </div>
 
       {/* Modules Roadmap */}
-      <div className="space-y-16">
+      <div className="space-y-10 sm:space-y-16">
         {course.modules.map((module, mIdx) => {
           const completedInModule = module.lessons.filter((l) =>
             user.completedLessons.includes(l.id)
@@ -119,30 +119,30 @@ export const RoadmapView: React.FC<RoadmapViewProps> = ({
           return (
             <div key={module.id} className="relative">
               {/* Module Header Capsule */}
-              <div className="mb-10 p-5 rounded-2xl bg-slate-900 text-white shadow-md flex items-center justify-between border border-slate-800">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center text-orange-400 font-bold text-sm">
+              <div className="mb-6 sm:mb-10 p-3.5 sm:p-5 rounded-xl sm:rounded-2xl bg-slate-900 text-white shadow-md flex items-center justify-between border border-slate-800">
+                <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center text-orange-400 font-bold text-xs sm:text-sm shrink-0">
                     {mIdx + 1}
                   </div>
-                  <div>
-                    <h2 className="text-base sm:text-lg font-extrabold tracking-tight">
+                  <div className="min-w-0">
+                    <h2 className="text-sm sm:text-lg font-extrabold tracking-tight truncate">
                       {module.title}
                     </h2>
-                    <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">
+                    <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5 line-clamp-1">
                       {module.description}
                     </p>
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                <div className="text-right shrink-0 ml-2">
+                  <span className="text-[10px] sm:text-xs font-extrabold px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
                     {completedInModule} / {module.lessons.length}
                   </span>
                 </div>
               </div>
 
               {/* Connecting Path Nodes */}
-              <div className="flex flex-col items-center gap-7 relative py-4">
+              <div className="flex flex-col items-center gap-5 sm:gap-7 relative py-2 sm:py-4">
                 {module.lessons.map((lesson, lIdx) => {
                   const status = getLessonStatus(lesson, mIdx, lIdx, course.modules);
                   const isCompleted = status === "completed";
@@ -163,7 +163,7 @@ export const RoadmapView: React.FC<RoadmapViewProps> = ({
                           }
                         }}
                         disabled={isLocked}
-                        className={`w-18 h-18 sm:w-20 sm:h-20 rounded-full flex flex-col items-center justify-center relative transition-all duration-300 ${
+                        className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex flex-col items-center justify-center relative transition-all duration-300 ${
                           isCompleted
                             ? "bg-gradient-to-b from-amber-400 to-amber-500 text-white shadow-lg shadow-amber-500/30 hover:scale-110 active:scale-95 border-4 border-amber-300"
                             : isActive
@@ -174,31 +174,31 @@ export const RoadmapView: React.FC<RoadmapViewProps> = ({
                       >
                         {isCompleted && (
                           <div className="flex flex-col items-center">
-                            <CheckCircle2 className="w-8 h-8 drop-shadow" />
+                            <CheckCircle2 className="w-6 h-6 sm:w-8 sm:h-8 drop-shadow" />
                             <div className="flex items-center gap-0.5 mt-0.5">
-                              <Star className="w-2.5 h-2.5 fill-white text-white" />
-                              <Star className="w-2.5 h-2.5 fill-white text-white" />
-                              <Star className="w-2.5 h-2.5 fill-white text-white" />
+                              <Star className="w-2 sm:w-2.5 h-2 sm:h-2.5 fill-white text-white" />
+                              <Star className="w-2 sm:w-2.5 h-2 sm:h-2.5 fill-white text-white" />
+                              <Star className="w-2 sm:w-2.5 h-2 sm:h-2.5 fill-white text-white" />
                             </div>
                           </div>
                         )}
 
                         {isActive && (
                           <div className="flex flex-col items-center">
-                            <Play className="w-7 h-7 fill-white ml-1 drop-shadow" />
-                            <span className="text-[10px] font-black tracking-widest uppercase mt-0.5">
+                            <Play className="w-5 h-5 sm:w-7 sm:h-7 fill-white ml-0.5 sm:ml-1 drop-shadow" />
+                            <span className="text-[9px] sm:text-[10px] font-black tracking-widest uppercase mt-0.5">
                               START
                             </span>
                           </div>
                         )}
 
-                        {isLocked && <Lock className="w-6 h-6" />}
+                        {isLocked && <Lock className="w-5 h-5 sm:w-6 sm:h-6" />}
                       </button>
 
                       {/* Small Lesson Title Label under node */}
-                      <div className="mt-2 text-center max-w-[140px]">
+                      <div className="mt-1.5 sm:mt-2 text-center max-w-[130px] sm:max-w-[140px]">
                         <span
-                          className={`text-xs font-bold leading-tight block ${
+                          className={`text-[11px] sm:text-xs font-bold leading-tight block ${
                             isCompleted
                               ? "text-slate-800 dark:text-slate-200"
                               : isActive
@@ -208,7 +208,7 @@ export const RoadmapView: React.FC<RoadmapViewProps> = ({
                         >
                           {lesson.title}
                         </span>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                        <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400">
                           +{lesson.xpReward} XP
                         </span>
                       </div>

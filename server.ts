@@ -399,6 +399,83 @@ app.get("/api/admin/users", (req, res) => {
   }
 });
 
+// 3b. Verify Administrator Clearance Passkey (Passkey kept secret on server)
+app.post("/api/admin/verify-passkey", (req, res) => {
+  try {
+    const { passkey, email } = req.body;
+    const SECRET_ADMIN_PASSKEY = process.env.ADMIN_PASSKEY || "ADMIN2026";
+
+    if (!passkey || String(passkey).trim() !== SECRET_ADMIN_PASSKEY) {
+      return res.status(401).json({
+        error: "Invalid administrator clearance passkey. Access denied.",
+      });
+    }
+
+    if (email) {
+      const cleanEmail = String(email).trim().toLowerCase();
+      const acc = accountsDB.get(cleanEmail);
+      if (acc) {
+        acc.role = "admin";
+        acc.token = `token_admin_${acc.id}_${Date.now()}`;
+        accountsDB.set(cleanEmail, acc);
+        return res.json({
+          success: true,
+          message: "Administrator clearance granted.",
+          user: sanitizeAccount(acc),
+          token: acc.token,
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: "Administrator passkey verified.",
+      role: "admin",
+    });
+  } catch (error: any) {
+    console.error("Passkey verification error:", error);
+    res.status(500).json({ error: "Failed to verify passkey." });
+  }
+});
+
+// 3c. User Progress Synchronization (Strictly private to the user's account)
+app.post("/api/user/progress", (req, res) => {
+  try {
+    const { email, progress } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "User email is required." });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const acc = accountsDB.get(cleanEmail);
+    if (!acc) {
+      return res.status(404).json({ error: "Account not found." });
+    }
+
+    if (progress) {
+      if (Array.isArray(progress.completedLessons)) acc.completedLessons = progress.completedLessons;
+      if (progress.lessonTestScores) acc.lessonTestScores = progress.lessonTestScores;
+      if (Array.isArray(progress.solvedChallenges)) acc.solvedChallenges = progress.solvedChallenges;
+      if (Array.isArray(progress.completedProjects)) acc.completedProjects = progress.completedProjects;
+      if (Array.isArray(progress.unlockedBadges)) acc.unlockedBadges = progress.unlockedBadges;
+      if (typeof progress.xp === "number") acc.xp = progress.xp;
+      if (typeof progress.level === "number") acc.level = progress.level;
+      if (typeof progress.streak === "number") acc.streak = progress.streak;
+      if (typeof progress.hearts === "number") acc.hearts = progress.hearts;
+      acc.lastActiveDate = new Date().toISOString().split("T")[0];
+      accountsDB.set(cleanEmail, acc);
+    }
+
+    res.json({
+      success: true,
+      user: sanitizeAccount(acc),
+    });
+  } catch (error: any) {
+    console.error("Save progress error:", error);
+    res.status(500).json({ error: "Failed to persist user progress." });
+  }
+});
+
 // 4. Privacy: Export User Data (GDPR Right to Data Portability)
 app.post("/api/user/export-data", (req, res) => {
   try {

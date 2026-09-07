@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { UserState, Lesson, CodingChallenge } from "./types";
-import { getUserState, subscribeUserState } from "./services/storageService";
+import {
+  getUserState,
+  subscribeUserState,
+  isUserAuthenticated,
+  subscribeAuth,
+} from "./services/storageService";
 import { COURSES } from "./data/coursesData";
 import { CODING_CHALLENGES } from "./data/challengesData";
 
@@ -15,7 +20,9 @@ import { LeaderboardView } from "./components/LeaderboardView";
 import { AchievementsView } from "./components/AchievementsView";
 import { ReviewView } from "./components/ReviewView";
 import { AdminView } from "./components/AdminView";
+import { RegisterView } from "./components/RegisterView";
 import { LandingHomeView } from "./components/LandingHomeView";
+import { OfflineIndicator } from "./components/OfflineIndicator";
 import { LessonModal } from "./components/LessonModal";
 import { CodePlaygroundModal } from "./components/CodePlaygroundModal";
 import { QuestAIPanel } from "./components/QuestAIPanel";
@@ -25,8 +32,11 @@ import { OnboardingModal } from "./components/OnboardingModal";
 import { PromoDemoVideoModal } from "./components/PromoDemoVideoModal";
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(isUserAuthenticated());
   const [user, setUser] = useState<UserState>(getUserState());
-  const [currentView, setCurrentView] = useState<string>("dashboard");
+  const [currentView, setCurrentView] = useState<string>(
+    isUserAuthenticated() ? "dashboard" : "register"
+  );
   const [selectedCourseId, setSelectedCourseId] = useState<string>("java_foundations");
 
   // Modals & Panels
@@ -49,9 +59,19 @@ export default function App() {
       setUser(updated);
     });
 
-    // Check onboarding
+    const unsubAuth = subscribeAuth((isAuth, authUser) => {
+      setIsAuthenticated(isAuth);
+      if (authUser) {
+        setUser(authUser);
+      }
+      if (!isAuth) {
+        setCurrentView("register");
+      }
+    });
+
+    // Check onboarding (only for authenticated users)
     const onboarded = localStorage.getItem("javaquest_onboarded");
-    if (!onboarded) {
+    if (!onboarded && isUserAuthenticated()) {
       setIsOnboardingOpen(true);
     }
 
@@ -66,9 +86,19 @@ export default function App() {
 
     return () => {
       unsub();
+      unsubAuth();
       window.removeEventListener("keydown", handleGlobalKey);
     };
   }, []);
+
+  const handleNavigate = (view: string) => {
+    // Flow check: if user has not completed registration/login, direct them to register
+    if (!isUserAuthenticated() && view !== "register" && view !== "home") {
+      setCurrentView("register");
+      return;
+    }
+    setCurrentView(view);
+  };
 
   const currentCourse =
     COURSES.find((c) => c.id === selectedCourseId) || COURSES[0];
@@ -83,18 +113,22 @@ export default function App() {
     moduleTitle: string,
     initialMode?: "lesson" | "test"
   ) => {
+    if (!isUserAuthenticated()) {
+      setCurrentView("register");
+      return;
+    }
     setActiveLessonData({ lesson, moduleTitle, initialMode: initialMode || "lesson" });
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200 w-full max-w-full overflow-x-hidden">
       {/* Top Navigation */}
       <Navbar
         user={user}
         selectedCourseId={selectedCourseId}
         onSelectCourse={(id) => {
           setSelectedCourseId(id);
-          setCurrentView("learn");
+          handleNavigate("learn");
         }}
         onOpenSearch={() => setIsSearchOpen(true)}
         onOpenAiTutor={() => {
@@ -102,7 +136,7 @@ export default function App() {
           setIsAiOpen(true);
         }}
         onOpenAuth={() => setIsAuthOpen(true)}
-        onNavigate={(view) => setCurrentView(view)}
+        onNavigate={handleNavigate}
         onOpenPromoDemo={() => setIsPromoDemoOpen(true)}
       />
 
@@ -120,20 +154,20 @@ export default function App() {
       )}
 
       {/* Main Layout Body */}
-      <div className="flex-1 flex max-w-7xl w-full mx-auto">
+      <div className="flex-1 flex max-w-7xl w-full mx-auto overflow-x-hidden min-w-0">
         {/* Left Sidebar (Desktop) */}
         <Sidebar
           currentView={currentView}
-          onNavigate={(view) => setCurrentView(view)}
+          onNavigate={handleNavigate}
           mistakesCount={user.mistakeLessonIds.length}
         />
 
         {/* Viewport Content */}
-        <main className="flex-1 pb-20 md:pb-8 overflow-x-hidden">
+        <main className="flex-1 pb-20 md:pb-8 overflow-x-hidden min-w-0 max-w-full">
           {currentView === "home" && (
             <LandingHomeView
-              onStartLearning={() => setCurrentView("learn")}
-              onExploreCourses={() => setCurrentView("courses")}
+              onStartLearning={() => handleNavigate("learn")}
+              onExploreCourses={() => handleNavigate("courses")}
               onOpenPromoDemo={() => setIsPromoDemoOpen(true)}
             />
           )}
@@ -144,12 +178,12 @@ export default function App() {
               currentCourse={currentCourse}
               onNavigateToCourse={(id) => {
                 setSelectedCourseId(id);
-                setCurrentView("learn");
+                handleNavigate("learn");
               }}
               onStartDailyChallenge={() => {
                 setActiveChallenge(CODING_CHALLENGES[0]);
               }}
-              onNavigate={(view) => setCurrentView(view)}
+              onNavigate={handleNavigate}
               onOpenPromoDemo={() => setIsPromoDemoOpen(true)}
             />
           )}
@@ -159,7 +193,7 @@ export default function App() {
               course={currentCourse}
               user={user}
               onSelectLesson={handleStartLesson}
-              onNavigateToProjects={() => setCurrentView("projects")}
+              onNavigateToProjects={() => handleNavigate("projects")}
             />
           )}
 
@@ -170,7 +204,7 @@ export default function App() {
               onSelectCourse={(id) => setSelectedCourseId(id)}
               onStartCourse={(id) => {
                 setSelectedCourseId(id);
-                setCurrentView("learn");
+                handleNavigate("learn");
               }}
             />
           )}
@@ -200,33 +234,53 @@ export default function App() {
             />
           )}
 
-          {currentView === "admin" && <AdminView />}
+          {currentView === "register" && (
+            <RegisterView
+              currentUser={user}
+              onSuccess={(newUser) => {
+                setUser(newUser);
+                setIsAuthenticated(true);
+                setCurrentView("dashboard");
+              }}
+              onNavigate={handleNavigate}
+            />
+          )}
+
+          {currentView === "admin" && (
+            <AdminView
+              currentUser={user}
+              onNavigate={handleNavigate}
+              onUserRoleUpdated={(updated) => setUser(updated)}
+            />
+          )}
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-t border-slate-200 dark:border-slate-800 flex items-center justify-around py-2 px-1 text-[10px] font-bold">
-        {[
-          { id: "dashboard", label: "Home", icon: "🏠" },
-          { id: "learn", label: "Path", icon: "🗺️" },
-          { id: "practice", label: "Practice", icon: "⌨️" },
-          { id: "leaderboard", label: "Ranks", icon: "🏆" },
-          { id: "achievements", label: "Quests", icon: "⭐" },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setCurrentView(tab.id)}
-            className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-colors ${
-              currentView === tab.id
-                ? "text-orange-500 font-extrabold"
-                : "text-slate-500 dark:text-slate-400"
-            }`}
-          >
-            <span className="text-base">{tab.icon}</span>
-            <span>{tab.label}</span>
-          </button>
-        ))}
-      </nav>
+      {/* Mobile Bottom Navigation Bar - Only shown for authenticated users, hidden during registration */}
+      {isAuthenticated && currentView !== "register" && (
+        <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-t border-slate-200 dark:border-slate-800 flex items-center justify-around py-1.5 px-1 text-[10px] font-bold shadow-lg">
+          {[
+            { id: "dashboard", label: "Home", icon: "🏠" },
+            { id: "learn", label: "Path", icon: "🗺️" },
+            { id: "practice", label: "Practice", icon: "⌨️" },
+            { id: "leaderboard", label: "Ranks", icon: "🏆" },
+            { id: "achievements", label: "Quests", icon: "⭐" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => handleNavigate(tab.id)}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-colors ${
+                currentView === tab.id
+                  ? "text-orange-500 font-extrabold"
+                  : "text-slate-500 dark:text-slate-400"
+              }`}
+            >
+              <span className="text-base">{tab.icon}</span>
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
 
       {/* Interactive Lesson Modal */}
       {activeLessonData && (
@@ -278,7 +332,14 @@ export default function App() {
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
         user={user}
+        onOpenRegisterPage={() => {
+          setIsAuthOpen(false);
+          setCurrentView("register");
+        }}
       />
+
+      {/* Offline Status PWA Indicator */}
+      <OfflineIndicator />
 
       {/* Onboarding Dialog */}
       <OnboardingModal

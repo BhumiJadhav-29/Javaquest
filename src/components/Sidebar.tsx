@@ -10,7 +10,9 @@ import {
   Award,
   ShieldCheck,
   Home,
+  UserPlus,
 } from "lucide-react";
+import { PWAInstallButton } from "./PWAInstallButton";
 
 interface SidebarProps {
   currentView: string;
@@ -39,11 +41,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     { id: "leaderboard", label: "Leaderboard", icon: Trophy, badge: null },
     { id: "achievements", label: "Achievements", icon: Award, badge: null },
-    { id: "admin", label: "Metrics & Admin", icon: ShieldCheck, badge: null },
+    {
+      id: "register",
+      label: "Register / Account",
+      icon: UserPlus,
+      badge: "Auth",
+      badgeColor: "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400",
+    },
+    {
+      id: "admin",
+      label: "Metrics & Admin",
+      icon: ShieldCheck,
+      badge: "Admin",
+      badgeColor: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+    },
   ];
 
   return (
-    <aside className="w-60 shrink-0 hidden md:flex flex-col justify-between py-6 px-3 border-r border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur min-h-[calc(100vh-4rem)]">
+    <aside className="w-60 shrink-0 hidden md:flex flex-col justify-between py-6 px-3 border-r border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur min-h-[calc(100vh-4rem)] space-y-6">
       <div className="space-y-1">
         <div className="px-3 pb-3 text-[11px] font-bold tracking-wider uppercase text-slate-400 dark:text-slate-500">
           Learning Journey
@@ -90,17 +105,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </div>
 
-      {/* Motivation Mini Card */}
-      <div className="p-3.5 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-slate-800 dark:to-orange-950/30 border border-orange-200/50 dark:border-orange-900/40">
-        <div className="flex items-center gap-2 mb-1.5">
-          <span className="text-base">🚀</span>
-          <span className="text-xs font-bold text-slate-900 dark:text-white">
-            Daily Goal
-          </span>
+      {/* Bottom Actions: PWA Install & Daily Goal */}
+      <div className="space-y-3">
+        {/* PWA Install Button */}
+        <PWAInstallButton variant="sidebar" />
+
+        {/* Daily Motivation Mini Card */}
+        <div className="p-3.5 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-slate-800 dark:to-orange-950/30 border border-orange-200/50 dark:border-orange-900/40">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-base">🚀</span>
+            <span className="text-xs font-bold text-slate-900 dark:text-white">
+              Daily Goal
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
+            Complete 1 lesson every day to protect your streak and level up!
+          </p>
         </div>
-        <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
-          Complete 1 lesson every day to protect your streak and level up!
-        </p>
       </div>
     </aside>
   );

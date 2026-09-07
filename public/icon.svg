@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ea580c"/>
+      <stop offset="50%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+    <linearGradient id="cupGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#fed7aa"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#7c2d12" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background Rounded Rect -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+
+  <!-- Subtle Inner Ring -->
+  <circle cx="256" cy="256" r="196" fill="none" stroke="#ffffff" stroke-width="4" stroke-opacity="0.25" stroke-dasharray="8 8"/>
+
+  <!-- Coffee Cup + Code Emblem Group -->
+  <g filter="url(#shadow)">
+    <!-- Steam Curves -->
+    <path d="M210 148 C 200 120, 230 100, 215 75" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" stroke-opacity="0.9"/>
+    <path d="M256 140 C 246 110, 276 90, 261 65" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" stroke-opacity="0.95"/>
+    <path d="M302 148 C 292 120, 322 100, 307 75" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" stroke-opacity="0.9"/>
+
+    <!-- Cup Body -->
+    <path d="M152 184 L360 184 L336 348 C 332 376, 310 396, 282 396 L230 396 C 202 396, 180 376, 176 348 Z" fill="url(#cupGrad)"/>
+
+    <!-- Cup Handle -->
+    <path d="M344 212 C 392 212, 396 300, 340 308" fill="none" stroke="#ffffff" stroke-width="22" stroke-linecap="round"/>
+
+    <!-- Saucer / Plate -->
+    <ellipse cx="256" cy="420" rx="140" ry="18" fill="#ffffff" fill-opacity="0.92"/>
+
+    <!-- Code Brackets & Quest Sparkle on Cup -->
+    <path d="M224 250 L198 276 L224 302" fill="none" stroke="#ea580c" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M288 250 L314 276 L288 302" fill="none" stroke="#ea580c" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <polygon points="256,242 263,266 287,273 263,280 256,304 249,280 225,273 249,266" fill="#ea580c"/>
+  </g>
+</svg>

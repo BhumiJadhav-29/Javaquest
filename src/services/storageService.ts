@@ -9,176 +9,44 @@ export interface StoredAuthAccount {
   id: string;
   username: string;
   email: string;
-  password: string;
   role: "student" | "admin";
   avatar: string;
   agreedToPrivacyPolicy: boolean;
   privacyConsentDate: string;
   joinedDate: string;
-  userState: UserState;
 }
 
-const INITIAL_FALLBACK_ACCOUNTS: StoredAuthAccount[] = [
-  {
-    id: "admin_bhumi_01",
-    username: "Bhumi_Admin",
-    email: "jadhavbhumi02@gmail.com",
-    password: "AdminPassword123!",
-    role: "admin",
-    avatar: "🛡️",
-    agreedToPrivacyPolicy: true,
-    privacyConsentDate: "2026-09-01T00:00:00.000Z",
-    joinedDate: "2026-09-01",
-    userState: {
-      id: "admin_bhumi_01",
-      username: "Bhumi_Admin",
-      email: "jadhavbhumi02@gmail.com",
-      avatar: "🛡️",
-      role: "admin",
-      agreedToPrivacyPolicy: true,
-      privacyConsentDate: "2026-09-01T00:00:00.000Z",
-      level: 5,
-      xp: 1250,
-      streak: 15,
-      lastActiveDate: new Date().toISOString().split("T")[0],
-      streakHistory: [
-        new Date(Date.now() - 2 * 86400000).toISOString().split("T")[0],
-        new Date(Date.now() - 1 * 86400000).toISOString().split("T")[0],
-        new Date().toISOString().split("T")[0],
-      ],
-      hearts: 5,
-      maxHearts: 5,
-      lastHeartRegen: Date.now(),
-      completedLessons: ["java_1_1", "java_1_2", "py_1_1", "js_1_1"],
-      lessonTestScores: {
-        java_1_1: { score: 3, total: 3, percentage: 100, stars: 3, passed: true, completedAt: "2026-09-01" },
-      },
-      solvedChallenges: ["ch_hello_world", "ch_variables"],
-      completedProjects: ["proj_student_grade"],
-      unlockedBadges: ["first_lesson", "first_code", "xp_100"],
-      mistakeLessonIds: [],
-      learningPreference: "Java",
-      experienceLevel: "Advanced",
-      isPublicLeaderboard: true,
-      dailyChallengeDoneDate: "",
-      joinedDate: "2026-09-01",
-    },
-  },
-  {
-    id: "admin_sys_02",
-    username: "AdminMaster",
-    email: "admin@javaquest.dev",
-    password: "Admin@123",
-    role: "admin",
-    avatar: "👑",
-    agreedToPrivacyPolicy: true,
-    privacyConsentDate: "2026-09-01T00:00:00.000Z",
-    joinedDate: "2026-09-01",
-    userState: {
-      id: "admin_sys_02",
-      username: "AdminMaster",
-      email: "admin@javaquest.dev",
-      avatar: "👑",
-      role: "admin",
-      agreedToPrivacyPolicy: true,
-      privacyConsentDate: "2026-09-01T00:00:00.000Z",
-      level: 6,
-      xp: 1800,
-      streak: 20,
-      lastActiveDate: new Date().toISOString().split("T")[0],
-      streakHistory: [new Date().toISOString().split("T")[0]],
-      hearts: 5,
-      maxHearts: 5,
-      lastHeartRegen: Date.now(),
-      completedLessons: ["java_1_1", "java_1_2", "java_1_3"],
-      lessonTestScores: {},
-      solvedChallenges: ["ch_hello_world", "ch_variables", "ch_fizzbuzz"],
-      completedProjects: ["proj_student_grade"],
-      unlockedBadges: ["first_lesson", "first_code", "xp_100", "streak_7"],
-      mistakeLessonIds: [],
-      learningPreference: "Java",
-      experienceLevel: "Advanced",
-      isPublicLeaderboard: true,
-      dailyChallengeDoneDate: "",
-      joinedDate: "2026-09-01",
-    },
-  },
-  {
-    id: "user_quest_01",
-    username: "AlexDeveloper",
-    email: "alex@javaquest.dev",
-    password: "Student@123",
-    role: "student",
-    avatar: "☕",
-    agreedToPrivacyPolicy: true,
-    privacyConsentDate: "2026-09-02T00:00:00.000Z",
-    joinedDate: "2026-09-02",
-    userState: {
-      id: "user_quest_01",
-      username: "AlexDeveloper",
-      email: "alex@javaquest.dev",
-      avatar: "☕",
-      role: "student",
-      agreedToPrivacyPolicy: true,
-      privacyConsentDate: "2026-09-02T00:00:00.000Z",
-      level: 2,
-      xp: 140,
-      streak: 3,
-      lastActiveDate: new Date().toISOString().split("T")[0],
-      streakHistory: [
-        new Date(Date.now() - 2 * 86400000).toISOString().split("T")[0],
-        new Date(Date.now() - 1 * 86400000).toISOString().split("T")[0],
-        new Date().toISOString().split("T")[0],
-      ],
-      hearts: 5,
-      maxHearts: 5,
-      lastHeartRegen: Date.now(),
-      completedLessons: ["java_1_1", "java_1_2"],
-      lessonTestScores: {
-        java_1_1: {
-          score: 3,
-          total: 3,
-          percentage: 100,
-          stars: 3,
-          passed: true,
-          completedAt: "2026-09-01",
-        },
-      },
-      solvedChallenges: ["ch_hello_world"],
-      completedProjects: [],
-      unlockedBadges: ["first_lesson", "first_code"],
-      mistakeLessonIds: [],
-      learningPreference: "Java",
-      experienceLevel: "Beginner",
-      isPublicLeaderboard: true,
-      dailyChallengeDoneDate: "",
-      joinedDate: "2026-09-01",
-    },
-  },
-];
+export const GUEST_USER_TEMPLATE: UserState = {
+  id: "guest_visitor",
+  username: "Guest Learner",
+  email: "",
+  avatar: "☕",
+  role: "student",
+  agreedToPrivacyPolicy: false,
+  level: 1,
+  xp: 0,
+  streak: 0,
+  lastActiveDate: new Date().toISOString().split("T")[0],
+  streakHistory: [],
+  hearts: 5,
+  maxHearts: 5,
+  lastHeartRegen: Date.now(),
+  completedLessons: [],
+  lessonTestScores: {},
+  solvedChallenges: [],
+  completedProjects: [],
+  unlockedBadges: [],
+  mistakeLessonIds: [],
+  learningPreference: "Java",
+  experienceLevel: "Beginner",
+  isPublicLeaderboard: false,
+  dailyChallengeDoneDate: "",
+  joinedDate: new Date().toISOString().split("T")[0],
+};
 
-function getLocalAccounts(): StoredAuthAccount[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_ACCOUNTS_KEY);
-    if (!raw) {
-      localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(INITIAL_FALLBACK_ACCOUNTS));
-      return INITIAL_FALLBACK_ACCOUNTS;
-    }
-    return JSON.parse(raw);
-  } catch (e) {
-    return INITIAL_FALLBACK_ACCOUNTS;
-  }
+function getUserProgressKey(userId: string): string {
+  return `javaquest_user_progress_${userId}`;
 }
-
-function saveLocalAccounts(accounts: StoredAuthAccount[]) {
-  try {
-    localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(accounts));
-  } catch (e) {
-    console.error("Failed to save local accounts", e);
-  }
-}
-
-const DEFAULT_USER: UserState = INITIAL_FALLBACK_ACCOUNTS[2].userState;
 
 type Listener = (state: UserState) => void;
 const listeners: Set<Listener> = new Set();
@@ -189,7 +57,10 @@ const authListeners: Set<AuthListener> = new Set();
 export function isUserAuthenticated(): boolean {
   try {
     const session = localStorage.getItem(AUTH_SESSION_KEY);
-    return Boolean(session && session.length > 5);
+    const rawUser = localStorage.getItem(STORAGE_KEY);
+    if (!session || session.length < 5 || !rawUser) return false;
+    const user: UserState = JSON.parse(rawUser);
+    return Boolean(user && user.id && user.id !== "guest_visitor" && user.agreedToPrivacyPolicy);
   } catch {
     return false;
   }
@@ -208,11 +79,15 @@ export function notifyAuthChange(isAuth: boolean, user: UserState | null) {
 
 export function getUserState(): UserState {
   try {
+    if (!isUserAuthenticated()) {
+      return { ...GUEST_USER_TEMPLATE };
+    }
+
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      saveUserState(DEFAULT_USER);
-      return DEFAULT_USER;
+      return { ...GUEST_USER_TEMPLATE };
     }
+
     const state: UserState = JSON.parse(raw);
 
     // Default missing role
@@ -235,12 +110,18 @@ export function getUserState(): UserState {
     return state;
   } catch (e) {
     console.error("Failed to load user state from localStorage", e);
-    return DEFAULT_USER;
+    return { ...GUEST_USER_TEMPLATE };
   }
 }
 
 export function saveUserState(state: UserState) {
   try {
+    // If not authenticated or visitor, don't overwrite private records
+    if (!state.id || state.id === "guest_visitor") {
+      listeners.forEach((fn) => fn({ ...state }));
+      return;
+    }
+
     // Recalculate level
     const lvlInfo = getLevelForXp(state.xp);
     state.level = lvlInfo.level;
@@ -257,15 +138,34 @@ export function saveUserState(state: UserState) {
       }
     });
 
+    // Save active session
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 
-    // Update in local accounts list
-    const accounts = getLocalAccounts();
-    const idx = accounts.findIndex((a) => a.email.toLowerCase() === state.email.toLowerCase());
-    if (idx !== -1) {
-      accounts[idx].userState = { ...state };
-      accounts[idx].role = state.role;
-      saveLocalAccounts(accounts);
+    // Save strictly to private partition for this user
+    localStorage.setItem(getUserProgressKey(state.id), JSON.stringify(state));
+
+    // Sync private progress to backend in background
+    if (state.email) {
+      fetch("/api/user/progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: state.email,
+          progress: {
+            completedLessons: state.completedLessons,
+            lessonTestScores: state.lessonTestScores,
+            solvedChallenges: state.solvedChallenges,
+            completedProjects: state.completedProjects,
+            unlockedBadges: state.unlockedBadges,
+            xp: state.xp,
+            level: state.level,
+            streak: state.streak,
+            hearts: state.hearts,
+          },
+        }),
+      }).catch(() => {
+        // Silently handled in offline mode
+      });
     }
 
     listeners.forEach((fn) => fn({ ...state }));
@@ -274,7 +174,7 @@ export function saveUserState(state: UserState) {
   }
 }
 
-// User Registration with strict validation & privacy agreement
+// User Registration with strict credential validation & privacy agreement
 export async function registerUser(params: {
   username: string;
   email: string;
@@ -298,7 +198,7 @@ export async function registerUser(params: {
     return { success: false, error: "Password must be at least 6 characters long." };
   }
 
-  // 1. Try server API
+  // 1. Submit to server registration endpoint
   try {
     const res = await fetch("/api/auth/register", {
       method: "POST",
@@ -307,6 +207,10 @@ export async function registerUser(params: {
     });
     const data = await res.json();
     if (res.ok && data.user) {
+      const nowIso = new Date().toISOString();
+      const today = nowIso.split("T")[0];
+
+      // Clean private progress for the newly registered user
       const newUserState: UserState = {
         id: data.user.id,
         username: data.user.username,
@@ -314,12 +218,12 @@ export async function registerUser(params: {
         avatar: data.user.avatar || avatar,
         role: data.user.role || "student",
         agreedToPrivacyPolicy: true,
-        privacyConsentDate: data.user.privacyConsentDate || new Date().toISOString(),
+        privacyConsentDate: data.user.privacyConsentDate || nowIso,
         level: data.user.level || 1,
         xp: data.user.xp || 50,
         streak: data.user.streak || 1,
-        lastActiveDate: data.user.lastActiveDate || new Date().toISOString().split("T")[0],
-        streakHistory: [new Date().toISOString().split("T")[0]],
+        lastActiveDate: today,
+        streakHistory: [today],
         hearts: 5,
         maxHearts: 5,
         lastHeartRegen: Date.now(),
@@ -333,29 +237,12 @@ export async function registerUser(params: {
         experienceLevel: "Beginner",
         isPublicLeaderboard: true,
         dailyChallengeDoneDate: "",
-        joinedDate: data.user.joinedDate || new Date().toISOString().split("T")[0],
+        joinedDate: data.user.joinedDate || today,
       };
 
-      localStorage.setItem(AUTH_SESSION_KEY, data.token || "token_active");
-      saveUserState(newUserState);
-
-      // Save to local accounts mirror
-      const accounts = getLocalAccounts();
-      if (!accounts.some((a) => a.email.toLowerCase() === data.user.email.toLowerCase())) {
-        accounts.push({
-          id: newUserState.id,
-          username: newUserState.username,
-          email: newUserState.email,
-          password,
-          role: newUserState.role,
-          avatar: newUserState.avatar,
-          agreedToPrivacyPolicy: true,
-          privacyConsentDate: newUserState.privacyConsentDate || new Date().toISOString(),
-          joinedDate: newUserState.joinedDate,
-          userState: newUserState,
-        });
-        saveLocalAccounts(accounts);
-      }
+      localStorage.setItem(AUTH_SESSION_KEY, data.token || `token_${newUserState.id}`);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newUserState));
+      localStorage.setItem(getUserProgressKey(newUserState.id), JSON.stringify(newUserState));
 
       notifyAuthChange(true, newUserState);
       return { success: true, user: newUserState };
@@ -363,76 +250,16 @@ export async function registerUser(params: {
       return { success: false, error: data.error || "Registration failed." };
     }
   } catch (err) {
-    console.warn("Server registration failed, attempting client store fallback:", err);
+    console.warn("Server registration network error:", err);
   }
 
-  // 2. Client fallback
-  const accounts = getLocalAccounts();
-  const cleanEmail = email.trim().toLowerCase();
-  if (accounts.some((a) => a.email.toLowerCase() === cleanEmail)) {
-    return { success: false, error: "An account with this email is already registered. Please sign in." };
-  }
-
-  const isAdmin =
-    adminCode === "ADMIN2026" ||
-    cleanEmail === "jadhavbhumi02@gmail.com" ||
-    cleanEmail === "admin@javaquest.dev";
-
-  const newId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-  const nowIso = new Date().toISOString();
-  const today = nowIso.split("T")[0];
-
-  const newUserState: UserState = {
-    id: newId,
-    username: username.trim(),
-    email: cleanEmail,
-    avatar: avatar || "☕",
-    role: isAdmin ? "admin" : "student",
-    agreedToPrivacyPolicy: true,
-    privacyConsentDate: nowIso,
-    level: 1,
-    xp: 50,
-    streak: 1,
-    lastActiveDate: today,
-    streakHistory: [today],
-    hearts: 5,
-    maxHearts: 5,
-    lastHeartRegen: Date.now(),
-    completedLessons: [],
-    lessonTestScores: {},
-    solvedChallenges: [],
-    completedProjects: [],
-    unlockedBadges: [],
-    mistakeLessonIds: [],
-    learningPreference: "Java",
-    experienceLevel: "Beginner",
-    isPublicLeaderboard: true,
-    dailyChallengeDoneDate: "",
-    joinedDate: today,
+  return {
+    success: false,
+    error: "Unable to connect to authentication service. Please check your network and try again.",
   };
-
-  accounts.push({
-    id: newId,
-    username: newUserState.username,
-    email: cleanEmail,
-    password,
-    role: newUserState.role,
-    avatar: newUserState.avatar,
-    agreedToPrivacyPolicy: true,
-    privacyConsentDate: nowIso,
-    joinedDate: today,
-    userState: newUserState,
-  });
-  saveLocalAccounts(accounts);
-
-  localStorage.setItem(AUTH_SESSION_KEY, `token_${newId}`);
-  saveUserState(newUserState);
-  notifyAuthChange(true, newUserState);
-
-  return { success: true, user: newUserState };
 }
 
-// User Login - Validates credentials strictly
+// User Login - Validates credentials strictly against server database
 export async function loginUser(
   identifier: string,
   password: string
@@ -441,7 +268,7 @@ export async function loginUser(
     return { success: false, error: "Please enter your username/email and password." };
   }
 
-  // 1. Try server API
+  // 1. Submit to server login API
   try {
     const res = await fetch("/api/auth/login", {
       method: "POST",
@@ -450,71 +277,103 @@ export async function loginUser(
     });
     const data = await res.json();
     if (res.ok && data.user) {
+      const userId = data.user.id;
+      const progressKey = getUserProgressKey(userId);
+
+      // Check if user has local cached progress for their own account
+      let userProgress: Partial<UserState> = {};
+      try {
+        const cached = localStorage.getItem(progressKey);
+        if (cached) {
+          userProgress = JSON.parse(cached);
+        }
+      } catch (e) {
+        // ignore parse error
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+
+      // Build private user state strictly for this user (no cross-contamination!)
       const loggedUser: UserState = {
-        ...getUserState(),
         id: data.user.id,
         username: data.user.username,
         email: data.user.email,
-        avatar: data.user.avatar || "☕",
-        role: data.user.role || "student",
+        avatar: data.user.avatar || userProgress.avatar || "☕",
+        role: data.user.role || userProgress.role || "student",
         agreedToPrivacyPolicy: true,
-        level: data.user.level || 1,
-        xp: data.user.xp || 40,
-        streak: data.user.streak || 1,
-        completedLessons: data.user.completedLessons || [],
-        solvedChallenges: data.user.solvedChallenges || [],
-        lessonTestScores: data.user.lessonTestScores || {},
-        lastActiveDate: new Date().toISOString().split("T")[0],
+        privacyConsentDate: data.user.privacyConsentDate || userProgress.privacyConsentDate || new Date().toISOString(),
+        level: data.user.level || userProgress.level || 1,
+        xp: data.user.xp || userProgress.xp || 50,
+        streak: data.user.streak || userProgress.streak || 1,
+        lastActiveDate: today,
+        streakHistory: userProgress.streakHistory || [today],
+        hearts: userProgress.hearts ?? 5,
+        maxHearts: 5,
+        lastHeartRegen: userProgress.lastHeartRegen || Date.now(),
+        completedLessons: data.user.completedLessons || userProgress.completedLessons || [],
+        lessonTestScores: data.user.lessonTestScores || userProgress.lessonTestScores || {},
+        solvedChallenges: data.user.solvedChallenges || userProgress.solvedChallenges || [],
+        completedProjects: data.user.completedProjects || userProgress.completedProjects || [],
+        unlockedBadges: data.user.unlockedBadges || userProgress.unlockedBadges || [],
+        mistakeLessonIds: userProgress.mistakeLessonIds || [],
+        learningPreference: userProgress.learningPreference || "Java",
+        experienceLevel: userProgress.experienceLevel || "Beginner",
+        isPublicLeaderboard: userProgress.isPublicLeaderboard ?? true,
+        dailyChallengeDoneDate: userProgress.dailyChallengeDoneDate || "",
+        joinedDate: data.user.joinedDate || userProgress.joinedDate || today,
       };
 
-      localStorage.setItem(AUTH_SESSION_KEY, data.token || "token_active");
-      saveUserState(loggedUser);
+      localStorage.setItem(AUTH_SESSION_KEY, data.token || `token_${loggedUser.id}`);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedUser));
+      localStorage.setItem(progressKey, JSON.stringify(loggedUser));
+
       notifyAuthChange(true, loggedUser);
       return { success: true, user: loggedUser };
     } else if (!res.ok) {
-      return { success: false, error: data.error || "Invalid user credentials." };
+      return { success: false, error: data.error || "Invalid user credentials. Please check your username/email and password." };
     }
   } catch (err) {
-    console.warn("Server login failed, attempting local credentials verification:", err);
+    console.warn("Server login network error:", err);
   }
 
-  // 2. Client fallback
-  const accounts = getLocalAccounts();
-  const cleanId = identifier.trim().toLowerCase();
-  const found = accounts.find(
-    (a) => a.email.toLowerCase() === cleanId || a.username.toLowerCase() === cleanId
-  );
-
-  if (!found) {
-    return {
-      success: false,
-      error: "Invalid credentials: No account found matching this email or username.",
-    };
-  }
-
-  if (found.password !== password) {
-    return {
-      success: false,
-      error: "Invalid credentials: Incorrect password. Please try again.",
-    };
-  }
-
-  const activeUser = {
-    ...found.userState,
-    role: found.role,
-    lastActiveDate: new Date().toISOString().split("T")[0],
+  return {
+    success: false,
+    error: "Unable to reach the authentication service. Please check your connection and try again.",
   };
-
-  localStorage.setItem(AUTH_SESSION_KEY, `token_${found.id}`);
-  saveUserState(activeUser);
-  notifyAuthChange(true, activeUser);
-
-  return { success: true, user: activeUser };
 }
 
-// Logout
+// Verify secret administrator clearance passkey via server
+export async function verifyAdminPasskey(
+  passkey: string,
+  currentUser: UserState
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch("/api/admin/verify-passkey", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passkey, email: currentUser.email }),
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      currentUser.role = "admin";
+      saveUserState(currentUser);
+      if (data.token) {
+        localStorage.setItem(AUTH_SESSION_KEY, data.token);
+      }
+      return { success: true };
+    } else {
+      return { success: false, error: data.error || "Invalid administrator clearance passkey." };
+    }
+  } catch (err) {
+    return { success: false, error: "Network error while verifying administrator credentials." };
+  }
+}
+
+// Logout - Completely clears active session and locks activities
 export function logoutUser(): void {
   localStorage.removeItem(AUTH_SESSION_KEY);
+  localStorage.removeItem(STORAGE_KEY);
   notifyAuthChange(false, null);
 }
 
@@ -541,57 +400,19 @@ export async function fetchAdminMetrics(
     if (res.ok) {
       const data: AdminMetricsData = await res.json();
       return { success: true, data };
+    } else {
+      const errData = await res.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errData.error || "Access Denied: Administrator clearance failed.",
+      };
     }
   } catch (err) {
-    console.warn("Server admin fetch error, falling back to local accounts registry:", err);
+    return {
+      success: false,
+      error: "Unable to connect to administrator telemetry server. Please check your network.",
+    };
   }
-
-  // 2. Fallback from local accounts registry
-  const accounts = getLocalAccounts();
-  const totalUsers = accounts.length;
-  const today = new Date().toISOString().split("T")[0];
-  const activeToday = accounts.filter((a) => a.userState.lastActiveDate === today).length;
-  const studentsCount = accounts.filter((a) => a.role === "student").length;
-  const adminsCount = accounts.filter((a) => a.role === "admin").length;
-
-  const totalLessonsCompleted = accounts.reduce(
-    (sum, a) => sum + (a.userState.completedLessons?.length || 0),
-    0
-  );
-  const totalTestsPassed = accounts.reduce(
-    (sum, a) =>
-      sum +
-      Object.values(a.userState.lessonTestScores || {}).filter((t: any) => t?.passed).length,
-    0
-  );
-
-  const safeUsers = accounts.map((a) => ({
-    id: a.id,
-    username: a.username,
-    email: a.email,
-    role: a.role,
-    joinedDate: a.joinedDate,
-    lastActiveDate: a.userState.lastActiveDate,
-    level: a.userState.level,
-    xp: a.userState.xp,
-    completedLessonsCount: a.userState.completedLessons?.length || 0,
-    testsTakenCount: Object.keys(a.userState.lessonTestScores || {}).length,
-    agreedToPrivacyPolicy: a.agreedToPrivacyPolicy,
-    privacyConsentDate: a.privacyConsentDate,
-  }));
-
-  return {
-    success: true,
-    data: {
-      totalUsers,
-      activeToday,
-      studentsCount,
-      adminsCount,
-      totalLessonsCompleted,
-      totalTestsPassed,
-      users: safeUsers,
-    },
-  };
 }
 
 // GDPR: Export Data as JSON file download
@@ -655,13 +476,12 @@ export async function deleteUserAccountPermanently(
     console.warn("Server delete call failed, performing local erasure:", err);
   }
 
-  // Remove from local accounts
-  const accounts = getLocalAccounts().filter((a) => a.email.toLowerCase() !== user.email.toLowerCase());
-  saveLocalAccounts(accounts);
-
-  // Clear session & user storage
+  // Clear session, active storage, and user private partition
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(AUTH_SESSION_KEY);
+  if (user.id) {
+    localStorage.removeItem(getUserProgressKey(user.id));
+  }
   notifyAuthChange(false, null);
 
   return { success: true };

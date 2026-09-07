@@ -3,6 +3,7 @@ import { UserState, Course } from "../types";
 import { getLevelForXp, BADGES } from "../data/questsAndBadges";
 import { CODING_CHALLENGES } from "../data/challengesData";
 import { COURSES } from "../data/coursesData";
+import { PWAInstallButton } from "./PWAInstallButton";
 import {
   Flame,
   Sparkles,
@@ -59,33 +60,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   });
 
   return (
-    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 space-y-8">
+    <div className="max-w-6xl mx-auto py-4 sm:py-8 px-3 sm:px-6 space-y-4 sm:space-y-8 overflow-x-hidden">
       {/* Top Greeting & Streak Banner */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 text-white shadow-xl shadow-orange-500/15 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="space-y-1.5">
+      <div className="p-4 sm:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 text-white shadow-xl shadow-orange-500/15 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
+        <div className="space-y-1 sm:space-y-1.5">
           <div className="flex items-center gap-2">
-            <span className="text-xs uppercase font-extrabold tracking-wider px-2.5 py-0.5 rounded-full bg-white/20">
+            <span className="text-[10px] sm:text-xs uppercase font-extrabold tracking-wider px-2 py-0.5 rounded-full bg-white/20">
               {levelInfo.title}
             </span>
-            <span className="text-xs font-semibold text-orange-100">
+            <span className="text-[11px] sm:text-xs font-semibold text-orange-100">
               Level {user.level} of 10
             </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+          <h1 className="text-xl sm:text-3xl font-black tracking-tight">
             Welcome back, {user.username}! 👋
           </h1>
-          <p className="text-sm text-orange-50 max-w-xl leading-relaxed">
+          <p className="text-xs sm:text-sm text-orange-50 max-w-xl leading-relaxed">
             Consistency is the secret to software mastery. You are on a{" "}
             <strong>{user.streak}-day streak!</strong>
           </p>
           {onOpenPromoDemo && (
-            <div className="pt-2">
+            <div className="pt-1 sm:pt-2">
               <button
                 onClick={onOpenPromoDemo}
-                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-extrabold border border-white/30 backdrop-blur transition-all hover:scale-105 shadow-sm"
+                className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-extrabold border border-white/30 backdrop-blur transition-all hover:scale-105 shadow-sm"
               >
                 <span>🎬 Watch JavaQuest AI Demo Video</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-black">
+                <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-black">
                   NEW
                 </span>
               </button>
@@ -94,28 +95,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Streak Week Tracker */}
-        <div className="p-4 rounded-2xl bg-white/10 backdrop-blur border border-white/20 flex items-center gap-3">
+        <div className="w-full md:w-auto p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white/10 backdrop-blur border border-white/20 flex items-center justify-between md:justify-start gap-2.5 sm:gap-3">
           <div className="flex items-center gap-2">
-            <Flame className="w-6 h-6 fill-amber-300 text-amber-300 animate-pulse" />
+            <Flame className="w-5 h-5 sm:w-6 sm:h-6 fill-amber-300 text-amber-300 animate-pulse shrink-0" />
             <div>
-              <div className="text-xs font-bold uppercase tracking-wider text-orange-100">
+              <div className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-orange-100">
                 Streak
               </div>
-              <div className="text-xl font-black">{user.streak} Days</div>
+              <div className="text-lg sm:text-xl font-black">{user.streak} Days</div>
             </div>
           </div>
 
-          <div className="h-8 w-px bg-white/20 mx-1" />
+          <div className="h-7 sm:h-8 w-px bg-white/20 mx-0.5 sm:mx-1" />
 
           {/* Mini 7 day dots */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 sm:gap-1.5">
             {last7Days.map((d, i) => (
-              <div key={i} className="flex flex-col items-center gap-1">
-                <span className="text-[10px] font-bold text-orange-200">
+              <div key={i} className="flex flex-col items-center gap-0.5 sm:gap-1">
+                <span className="text-[9px] sm:text-[10px] font-bold text-orange-200">
                   {d.dayName}
                 </span>
                 <div
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
+                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold transition-all ${
                     d.active
                       ? "bg-amber-300 text-amber-900 shadow-sm"
                       : "bg-white/10 text-white/50 border border-white/20"
@@ -129,12 +130,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
+      {/* PWA Install Banner - Hidden automatically if already installed */}
+      <PWAInstallButton variant="banner" />
+
       {/* Main Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
         {/* Card 1: Continue Current Track */}
-        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+        <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
                 Active Track
               </span>
@@ -143,22 +147,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </span>
             </div>
 
-            <div className="flex items-center gap-3.5 mb-3">
-              <div className="w-12 h-12 rounded-2xl bg-orange-100 dark:bg-orange-950/60 border border-orange-200 dark:border-orange-800 flex items-center justify-center text-2xl">
+            <div className="flex items-center gap-3 sm:gap-3.5 mb-3">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-orange-100 dark:bg-orange-950/60 border border-orange-200 dark:border-orange-800 flex items-center justify-center text-xl sm:text-2xl shrink-0">
                 {currentCourse.icon}
               </div>
-              <div>
-                <h3 className="font-black text-lg text-slate-900 dark:text-white">
+              <div className="min-w-0">
+                <h3 className="font-black text-base sm:text-lg text-slate-900 dark:text-white truncate">
                   {currentCourse.title}
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                   {completedInCourse} / {totalLessons} Lessons Finished
                 </p>
               </div>
             </div>
 
             {/* Progress Bar */}
-            <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-0.5 mb-4">
+            <div className="w-full h-2.5 sm:h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-0.5 mb-3 sm:mb-4">
               <div
                 className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full transition-all duration-500"
                 style={{ width: `${Math.max(5, coursePercent)}%` }}
@@ -168,7 +172,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <button
             onClick={() => onNavigate("learn")}
-            className="w-full py-3 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs tracking-wide shadow-md shadow-orange-500/20 transition-all flex items-center justify-center gap-2"
+            className="w-full py-2.5 sm:py-3 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs tracking-wide shadow-md shadow-orange-500/20 transition-all flex items-center justify-center gap-2"
           >
             <Play className="w-3.5 h-3.5 fill-white" />
             <span>CONTINUE QUEST PATH</span>
@@ -176,7 +180,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Card 2: Today's Daily Challenge */}
-        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+        <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
