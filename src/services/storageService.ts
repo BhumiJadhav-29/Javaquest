@@ -114,6 +114,45 @@ export function getUserState(): UserState {
   }
 }
 
+// Debounced background synchronization to server database
+let saveProgressTimeout: any = null;
+
+function syncProgressToBackend(state: UserState) {
+  if (saveProgressTimeout) {
+    clearTimeout(saveProgressTimeout);
+  }
+
+  saveProgressTimeout = setTimeout(async () => {
+    const token = localStorage.getItem(AUTH_SESSION_KEY);
+    if (!token || !state.email) return;
+
+    try {
+      await fetch("/api/user/progress", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          progress: {
+            completedLessons: state.completedLessons,
+            lessonTestScores: state.lessonTestScores,
+            solvedChallenges: state.solvedChallenges,
+            completedProjects: state.completedProjects,
+            unlockedBadges: state.unlockedBadges,
+            xp: state.xp,
+            level: state.level,
+            streak: state.streak,
+            hearts: state.hearts,
+          },
+        }),
+      });
+    } catch {
+      // Offline fallback
+    }
+  }, 400);
+}
+
 export function saveUserState(state: UserState) {
   try {
     // If not authenticated or visitor, don't overwrite private records
@@ -144,29 +183,8 @@ export function saveUserState(state: UserState) {
     // Save strictly to private partition for this user
     localStorage.setItem(getUserProgressKey(state.id), JSON.stringify(state));
 
-    // Sync private progress to backend in background
-    if (state.email) {
-      fetch("/api/user/progress", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: state.email,
-          progress: {
-            completedLessons: state.completedLessons,
-            lessonTestScores: state.lessonTestScores,
-            solvedChallenges: state.solvedChallenges,
-            completedProjects: state.completedProjects,
-            unlockedBadges: state.unlockedBadges,
-            xp: state.xp,
-            level: state.level,
-            streak: state.streak,
-            hearts: state.hearts,
-          },
-        }),
-      }).catch(() => {
-        // Silently handled in offline mode
-      });
-    }
+    // Sync to database
+    syncProgressToBackend(state);
 
     listeners.forEach((fn) => fn({ ...state }));
   } catch (e) {
@@ -348,9 +366,13 @@ export async function verifyAdminPasskey(
   currentUser: UserState
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const token = localStorage.getItem(AUTH_SESSION_KEY) || "";
     const res = await fetch("/api/admin/verify-passkey", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({ passkey, email: currentUser.email }),
     });
 
@@ -463,9 +485,13 @@ export async function deleteUserAccountPermanently(
   passwordConfirm: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const token = localStorage.getItem(AUTH_SESSION_KEY) || "";
     const res = await fetch("/api/user/delete-account", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({ email: user.email, password: passwordConfirm }),
     });
     if (!res.ok) {
@@ -552,11 +578,55 @@ export function completeLesson(lessonId: string, xpEarned: number) {
   addXp(xpEarned, `Completed lesson ${lessonId}`);
 }
 
+export async function initUserStateSync(): Promise<void> {
+  const token = localStorage.getItem(AUTH_SESSION_KEY);
+  if (!token) return;
+
+  try {
+    const res = await fetch("/api/user/me", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.user) {
+        const current = getUserState();
+        const synchronized: UserState = {
+          ...current,
+          id: data.user.id,
+          username: data.user.username,
+          email: data.user.email,
+          role: data.user.role,
+          avatar: data.user.avatar || current.avatar,
+          level: data.user.level || current.level,
+          xp: data.user.xp ?? current.xp,
+          streak: data.user.streak ?? current.streak,
+          hearts: data.user.hearts ?? current.hearts,
+          maxHearts: data.user.maxHearts || current.maxHearts,
+          completedLessons: data.user.completedLessons || current.completedLessons,
+          lessonTestScores: data.user.lessonTestScores || current.lessonTestScores,
+          solvedChallenges: data.user.solvedChallenges || current.solvedChallenges,
+          completedProjects: data.user.completedProjects || current.completedProjects,
+          unlockedBadges: data.user.unlockedBadges || current.unlockedBadges,
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(synchronized));
+        localStorage.setItem(getUserProgressKey(synchronized.id), JSON.stringify(synchronized));
+        notifyAuthChange(true, synchronized);
+        listeners.forEach((fn) => fn({ ...synchronized }));
+      }
+    }
+  } catch {
+    // Offline fallback
+  }
+}
+
 export function recordLessonTestResult(
   lessonId: string,
   score: number,
   total: number,
-  xpBonus: number = 25
+  xpBonus: number = 25,
+  submittedAnswers?: Array<{ questionId: string; selected: string }>
 ): { passed: boolean; stars: number; xpEarned: number } {
   const current = getUserState();
   const percentage = Math.round((score / Math.max(1, total)) * 100);
@@ -567,7 +637,7 @@ export function recordLessonTestResult(
     current.lessonTestScores = {};
   }
 
-  // Preserve highest score
+  // Preserve highest score locally
   const previousRecord = current.lessonTestScores[lessonId];
   if (!previousRecord || percentage >= previousRecord.percentage) {
     current.lessonTestScores[lessonId] = {
@@ -588,6 +658,36 @@ export function recordLessonTestResult(
   const xpEarned = passed ? xpBonus : Math.round(xpBonus / 2);
   addXp(xpEarned, `Completed test for ${lessonId} (${percentage}%)`);
   saveUserState(current);
+
+  // Authoritative server-side quiz submission & verification
+  const token = localStorage.getItem(AUTH_SESSION_KEY);
+  if (token && submittedAnswers && submittedAnswers.length > 0) {
+    fetch("/api/quiz/submit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        lessonId,
+        answers: submittedAnswers,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.user) {
+          const fresh = getUserState();
+          fresh.xp = data.user.xp;
+          fresh.level = data.user.level;
+          fresh.completedLessons = data.user.completedLessons || fresh.completedLessons;
+          fresh.lessonTestScores = data.user.lessonTestScores || fresh.lessonTestScores;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh));
+          localStorage.setItem(getUserProgressKey(fresh.id), JSON.stringify(fresh));
+          listeners.forEach((fn) => fn({ ...fresh }));
+        }
+      })
+      .catch(() => {});
+  }
 
   return { passed, stars, xpEarned };
 }

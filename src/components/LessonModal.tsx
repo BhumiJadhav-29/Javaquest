@@ -151,7 +151,11 @@ export const LessonModal: React.FC<LessonModalProps> = ({
     } else {
       // Test finished!
       const total = Math.max(1, testQuestions.length);
-      recordLessonTestResult(lesson.id, testCorrectCount, total, lessonTest.xpBonus || 25);
+      const answersForServer = testUserAnswers.map((a) => ({
+        questionId: a.question.id,
+        selected: a.selected,
+      }));
+      recordLessonTestResult(lesson.id, testCorrectCount, total, lessonTest.xpBonus || 25, answersForServer);
       setPhase("test_summary");
     }
   };

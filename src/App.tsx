@@ -5,6 +5,7 @@ import {
   subscribeUserState,
   isUserAuthenticated,
   subscribeAuth,
+  initUserStateSync,
 } from "./services/storageService";
 import { COURSES } from "./data/coursesData";
 import { CODING_CHALLENGES } from "./data/challengesData";
@@ -55,6 +56,8 @@ export default function App() {
   const [levelUpAlert, setLevelUpAlert] = useState<{ level: number } | null>(null);
 
   useEffect(() => {
+    initUserStateSync();
+
     const unsub = subscribeUserState((updated) => {
       setUser(updated);
     });

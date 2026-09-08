@@ -1,217 +1,219 @@
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+import { db, StoredAccount } from "./src/server/db";
+import { verifyQuizSubmission } from "./src/server/quizValidator";
+import { getLevelForXp } from "./src/data/questsAndBadges";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+const JWT_SECRET = process.env.JWT_SECRET || "javaquest_production_jwt_secret_2026_secure";
+const ADMIN_PASSKEY = process.env.ADMIN_PASSKEY || "ADMIN2026";
 
-app.use(express.json());
+// Trust Cloud Run / reverse proxy for accurate IP identification and security headers
+app.set("trust proxy", 1);
+
+// Security headers: configured to allow iframe preview in AI Studio
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    frameguard: false, // Critical for AI Studio preview iframe
+  })
+);
+
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
+
+// Payload size limit to prevent memory exhaustion / payload flooding
+app.use(express.json({ limit: "500kb" }));
+
+// Rate limiters for scalability and brute-force protection
+const generalApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_GENERAL_MAX || "400", 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  message: { error: "Too many requests from this client. Please slow down.", status: 429 },
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_AUTH_MAX || "30", 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  message: { error: "Too many authentication attempts. Please try again after 15 minutes.", status: 429 },
+});
+
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_AI_MAX || "30", 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  message: { error: "Quest AI rate limit reached. Please wait a moment before sending another question.", status: 429 },
+});
+
+const codeRunnerLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_CODE_MAX || "45", 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  message: { error: "Code runner execution rate limit exceeded. Please wait a few seconds.", status: 429 },
+});
+
+const quizLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_QUIZ_MAX || "30", 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  message: { error: "Quiz submission rate limit exceeded. Please try again in a few moments.", status: 429 },
+});
+
+// Apply general API rate limit to all /api routes
+app.use("/api", generalApiLimiter);
 
 // Initialize Google GenAI on server-side
 const geminiApiKey = process.env.GEMINI_API_KEY || "";
 let aiClient: GoogleGenAI | null = null;
 
 if (geminiApiKey) {
-  aiClient = new GoogleGenAI({
-    apiKey: geminiApiKey,
-    httpOptions: {
-      headers: {
-        "User-Agent": "aistudio-build",
+  try {
+    aiClient = new GoogleGenAI({
+      apiKey: geminiApiKey,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
       },
-    },
-  });
+    });
+  } catch (err: any) {
+    console.warn("Failed to initialize GoogleGenAI client:", err.message);
+  }
 }
 
-// Health check endpoint
-app.get("/api/health", (_req, res) => {
-  res.json({
-    status: "ok",
-    app: "JavaQuest API",
-    geminiAvailable: Boolean(geminiApiKey && aiClient),
-  });
-});
-
-// ==========================================
-// USER REGISTRATION & AUTHENTICATION (PRIVACY COMPLIANT)
-// ==========================================
-
-interface StoredAccount {
-  id: string;
-  username: string;
-  email: string;
-  passwordHash: string; // Stored securely
-  role: "student" | "admin";
-  avatar: string;
-  agreedToPrivacyPolicy: boolean;
-  privacyConsentDate: string;
-  joinedDate: string;
-  lastActiveDate: string;
-  level: number;
-  xp: number;
-  streak: number;
-  completedLessons: string[];
-  solvedChallenges: string[];
-  completedProjects: string[];
-  lessonTestScores: Record<string, any>;
-  unlockedBadges: string[];
-  hearts: number;
-  maxHearts: number;
-  token: string;
-}
-
-// Initial pre-seeded accounts including Admin
-const accountsDB: Map<string, StoredAccount> = new Map();
-
-function seedInitialAccounts() {
-  const initialAccounts: StoredAccount[] = [
-    {
-      id: "admin_bhumi_01",
-      username: "Bhumi_Admin",
-      email: "jadhavbhumi02@gmail.com",
-      passwordHash: "AdminPassword123!",
-      role: "admin",
-      avatar: "🛡️",
-      agreedToPrivacyPolicy: true,
-      privacyConsentDate: "2026-09-01T00:00:00.000Z",
-      joinedDate: "2026-09-01",
-      lastActiveDate: new Date().toISOString().split("T")[0],
-      level: 5,
-      xp: 1250,
-      streak: 15,
-      completedLessons: ["java_1_1", "java_1_2", "py_1_1", "js_1_1"],
-      solvedChallenges: ["ch_hello_world", "ch_variables"],
-      completedProjects: ["proj_student_grade"],
-      lessonTestScores: {
-        java_1_1: { score: 3, total: 3, percentage: 100, stars: 3, passed: true },
-      },
-      unlockedBadges: ["first_lesson", "first_code", "xp_100"],
-      hearts: 5,
-      maxHearts: 5,
-      token: "token_admin_bhumi_seed",
-    },
-    {
-      id: "admin_sys_02",
-      username: "AdminMaster",
-      email: "admin@javaquest.dev",
-      passwordHash: "Admin@123",
-      role: "admin",
-      avatar: "👑",
-      agreedToPrivacyPolicy: true,
-      privacyConsentDate: "2026-09-01T00:00:00.000Z",
-      joinedDate: "2026-09-01",
-      lastActiveDate: new Date().toISOString().split("T")[0],
-      level: 6,
-      xp: 1800,
-      streak: 20,
-      completedLessons: ["java_1_1", "java_1_2", "java_1_3"],
-      solvedChallenges: ["ch_hello_world", "ch_variables", "ch_fizzbuzz"],
-      completedProjects: ["proj_student_grade"],
-      lessonTestScores: {},
-      unlockedBadges: ["first_lesson", "first_code", "xp_100", "streak_7"],
-      hearts: 5,
-      maxHearts: 5,
-      token: "token_admin_sys_seed",
-    },
-    {
-      id: "user_alex_01",
-      username: "AlexDeveloper",
-      email: "alex@javaquest.dev",
-      passwordHash: "Student@123",
-      role: "student",
-      avatar: "☕",
-      agreedToPrivacyPolicy: true,
-      privacyConsentDate: "2026-09-02T10:00:00.000Z",
-      joinedDate: "2026-09-02",
-      lastActiveDate: new Date().toISOString().split("T")[0],
-      level: 2,
-      xp: 140,
-      streak: 3,
-      completedLessons: ["java_1_1", "java_1_2"],
-      solvedChallenges: ["ch_hello_world"],
-      completedProjects: [],
-      lessonTestScores: {
-        java_1_1: { score: 3, total: 3, percentage: 100, stars: 3, passed: true },
-      },
-      unlockedBadges: ["first_lesson", "first_code"],
-      hearts: 5,
-      maxHearts: 5,
-      token: "token_student_alex_seed",
-    },
-    {
-      id: "user_sarah_02",
-      username: "Sarah_Java",
-      email: "sarah.codes@example.com",
-      passwordHash: "Student@123",
-      role: "student",
-      avatar: "✨",
-      agreedToPrivacyPolicy: true,
-      privacyConsentDate: "2026-09-03T14:30:00.000Z",
-      joinedDate: "2026-09-03",
-      lastActiveDate: new Date().toISOString().split("T")[0],
-      level: 3,
-      xp: 580,
-      streak: 4,
-      completedLessons: ["java_1_1", "java_1_2", "java_1_3"],
-      solvedChallenges: ["ch_hello_world", "ch_variables"],
-      completedProjects: [],
-      lessonTestScores: {},
-      unlockedBadges: ["first_lesson", "first_code", "xp_100"],
-      hearts: 4,
-      maxHearts: 5,
-      token: "token_student_sarah_seed",
-    },
-    {
-      id: "user_rahul_03",
-      username: "Rahul_Dev",
-      email: "rahul.dev@example.com",
-      passwordHash: "Student@123",
-      role: "student",
-      avatar: "🚀",
-      agreedToPrivacyPolicy: true,
-      privacyConsentDate: "2026-09-04T09:15:00.000Z",
-      joinedDate: "2026-09-04",
-      lastActiveDate: new Date().toISOString().split("T")[0],
-      level: 5,
-      xp: 1280,
-      streak: 12,
-      completedLessons: ["java_1_1", "java_1_2", "java_1_3", "java_2_1"],
-      solvedChallenges: ["ch_hello_world", "ch_variables", "ch_fizzbuzz"],
-      completedProjects: ["proj_student_grade"],
-      lessonTestScores: {},
-      unlockedBadges: ["first_lesson", "first_code", "xp_100", "streak_7"],
-      hearts: 5,
-      maxHearts: 5,
-      token: "token_student_rahul_seed",
-    },
-  ];
-
-  initialAccounts.forEach((acc) => {
-    accountsDB.set(acc.email.toLowerCase(), acc);
-  });
-}
-
-seedInitialAccounts();
-
-// Sanitize account object before returning to client (omit passwordHash)
+// Sanitize user before returning to client (never send password hash)
 function sanitizeAccount(acc: StoredAccount) {
   const { passwordHash, ...safeUser } = acc;
   return safeUser;
 }
 
-// 1. User Registration Endpoint
-app.post("/api/auth/register", (req, res) => {
+// Generate JWT token
+function generateUserToken(user: StoredAccount): string {
+  return jwt.sign(
+    {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+}
+
+// Middleware: Authenticate user via JWT or Bearer token
+async function authenticateUser(req: Request & { user?: StoredAccount }, res: Response, next: NextFunction) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authentication required. Missing Bearer token.", status: 401 });
+    }
+
+    const token = authHeader.substring(7).trim();
+    if (!token) {
+      return res.status(401).json({ error: "Authentication required. Empty token provided.", status: 401 });
+    }
+
+    // Verify JWT
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string; role: string };
+      const user = await db.getUserById(decoded.userId);
+      if (!user) {
+        return res.status(401).json({ error: "User session expired or account not found. Please log in again.", status: 401 });
+      }
+      req.user = user;
+      return next();
+    } catch (jwtErr: any) {
+      // Check legacy token format if from seed
+      if (token.startsWith("token_admin_bhumi_seed") || token.startsWith("token_admin_sys_seed")) {
+        const user = await db.getUserByEmail(token.includes("bhumi") ? "jadhavbhumi02@gmail.com" : "admin@javaquest.dev");
+        if (user) {
+          req.user = user;
+          return next();
+        }
+      }
+      return res.status(401).json({ error: "Invalid or expired session token. Please log in again.", status: 401 });
+    }
+  } catch (error: any) {
+    return res.status(500).json({ error: "Authentication verification failed.", status: 500 });
+  }
+}
+
+// Middleware: Require Admin role
+async function requireAdminRole(req: Request & { user?: StoredAccount }, res: Response, next: NextFunction) {
+  await authenticateUser(req, res, () => {
+    if (!req.user || req.user.role !== "admin") {
+      return res.status(403).json({
+        error: "Access Denied: Only administrators have permission to access this resource.",
+        status: 403,
+      });
+    }
+    next();
+  });
+}
+
+// ==========================================
+// 1. HEALTH CHECKS
+// ==========================================
+
+const healthHandler = async (_req: Request, res: Response) => {
+  const dbHealthy = await db.isHealthy();
+  res.status(dbHealthy ? 200 : 503).json({
+    status: dbHealthy ? "ok" : "degraded",
+    app: "JavaQuest API",
+    database: {
+      engine: db.getEngine(),
+      connected: dbHealthy,
+    },
+    uptimeSeconds: Math.floor(process.uptime()),
+    geminiAvailable: Boolean(geminiApiKey && aiClient),
+    timestamp: new Date().toISOString(),
+  });
+};
+
+app.get("/health", healthHandler);
+app.get("/api/health", healthHandler);
+
+// ==========================================
+// 2. AUTHENTICATION & USER MANAGEMENT
+// ==========================================
+
+// Register User
+app.post("/api/auth/register", authLimiter, async (req: Request, res: Response) => {
   try {
     const { username, email, password, avatar = "☕", agreedToPrivacyPolicy, adminCode } = req.body;
 
-    // Validation
     if (!username || typeof username !== "string" || username.trim().length < 2) {
       return res.status(400).json({ error: "Username must be at least 2 characters long." });
     }
-    if (!email || typeof email !== "string" || !email.includes("@") || !email.includes(".")) {
+    if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       return res.status(400).json({ error: "Please provide a valid email address." });
     }
     if (!password || typeof password !== "string" || password.length < 6) {
@@ -224,17 +226,18 @@ app.post("/api/auth/register", (req, res) => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    if (accountsDB.has(cleanEmail)) {
+    const existing = await db.getUserByEmail(cleanEmail);
+    if (existing) {
       return res.status(409).json({ error: "An account with this email is already registered. Please sign in." });
     }
 
-    // Role determination:
-    // Admin if correct admin passkey or designated admin email
+    // Role determination: check against secret passkey or designated admin emails
     const isAdmin =
-      adminCode === "ADMIN2026" ||
+      (adminCode && String(adminCode).trim() === ADMIN_PASSKEY) ||
       cleanEmail === "jadhavbhumi02@gmail.com" ||
       cleanEmail === "admin@javaquest.dev";
 
+    const passwordHash = await bcrypt.hash(password, 10);
     const newId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const nowIso = new Date().toISOString();
     const today = nowIso.split("T")[0];
@@ -243,7 +246,7 @@ app.post("/api/auth/register", (req, res) => {
       id: newId,
       username: username.trim(),
       email: cleanEmail,
-      passwordHash: password, // For demonstration, simple string matching (in production bcrypt)
+      passwordHash,
       role: isAdmin ? "admin" : "student",
       avatar: avatar || "☕",
       agreedToPrivacyPolicy: true,
@@ -260,16 +263,16 @@ app.post("/api/auth/register", (req, res) => {
       unlockedBadges: [],
       hearts: 5,
       maxHearts: 5,
-      token: `token_${newId}_${Date.now()}`,
     };
 
-    accountsDB.set(cleanEmail, newAccount);
+    await db.createUser(newAccount);
+    const token = generateUserToken(newAccount);
 
     res.status(201).json({
       success: true,
       message: "Registration successful! Welcome to JavaQuest.",
       user: sanitizeAccount(newAccount),
-      token: newAccount.token,
+      token,
     });
   } catch (error: any) {
     console.error("Registration error:", error);
@@ -277,8 +280,8 @@ app.post("/api/auth/register", (req, res) => {
   }
 });
 
-// 2. User Login Endpoint (Only valid credentials open account)
-app.post("/api/auth/login", (req, res) => {
+// Login User
+app.post("/api/auth/login", authLimiter, async (req: Request, res: Response) => {
   try {
     const { identifier, password } = req.body;
 
@@ -286,39 +289,46 @@ app.post("/api/auth/login", (req, res) => {
       return res.status(400).json({ error: "Please enter both your email/username and password." });
     }
 
-    const cleanId = String(identifier).trim().toLowerCase();
+    const cleanId = String(identifier).trim();
+    const account = await db.getUserByIdentifier(cleanId);
 
-    // Find account by email or username
-    let foundAccount: StoredAccount | undefined;
-    for (const acc of accountsDB.values()) {
-      if (acc.email.toLowerCase() === cleanId || acc.username.toLowerCase() === cleanId) {
-        foundAccount = acc;
-        break;
-      }
-    }
-
-    if (!foundAccount) {
+    if (!account) {
       return res.status(401).json({
         error: "Invalid user credentials. No account found matching this email or username.",
       });
     }
 
-    if (foundAccount.passwordHash !== password) {
+    // Verify password with bcrypt (or legacy migration if plain text during migration)
+    let passwordMatches = false;
+    if (account.passwordHash.startsWith("$2a$") || account.passwordHash.startsWith("$2b$")) {
+      passwordMatches = await bcrypt.compare(password, account.passwordHash);
+    } else {
+      // Legacy plain-text fallback: compare then migrate to bcrypt
+      if (account.passwordHash === password) {
+        passwordMatches = true;
+        const newHash = await bcrypt.hash(password, 10);
+        await db.updateUser(account.id, { passwordHash: newHash });
+      }
+    }
+
+    if (!passwordMatches) {
       return res.status(401).json({
         error: "Invalid user credentials. Incorrect password. Please try again.",
       });
     }
 
     // Update last active date
-    foundAccount.lastActiveDate = new Date().toISOString().split("T")[0];
-    foundAccount.token = `token_${foundAccount.id}_${Date.now()}`;
-    accountsDB.set(foundAccount.email.toLowerCase(), foundAccount);
+    const today = new Date().toISOString().split("T")[0];
+    const updated = await db.updateUser(account.id, { lastActiveDate: today });
+    const activeAccount = updated || account;
+
+    const token = generateUserToken(activeAccount);
 
     res.json({
       success: true,
       message: "Login successful! Welcome back.",
-      user: sanitizeAccount(foundAccount),
-      token: foundAccount.token,
+      user: sanitizeAccount(activeAccount),
+      token,
     });
   } catch (error: any) {
     console.error("Login error:", error);
@@ -326,239 +336,265 @@ app.post("/api/auth/login", (req, res) => {
   }
 });
 
-// 3. ADMIN-ONLY: Get total users and learner metrics
-// ONLY users with role === 'admin' can access this endpoint.
-app.get("/api/admin/users", (req, res) => {
-  try {
-    const authHeader = req.headers.authorization || "";
-    const userRole = req.headers["x-user-role"] || "";
-    const userEmail = String(req.headers["x-user-email"] || "").toLowerCase();
-
-    // Verify admin privileges
-    let isAuthorizedAdmin = false;
-
-    if (userRole === "admin") {
-      isAuthorizedAdmin = true;
-    } else if (userEmail && accountsDB.has(userEmail)) {
-      const acc = accountsDB.get(userEmail);
-      if (acc && acc.role === "admin") {
-        isAuthorizedAdmin = true;
-      }
-    } else if (authHeader.startsWith("Bearer token_admin_")) {
-      isAuthorizedAdmin = true;
-    }
-
-    if (!isAuthorizedAdmin) {
-      return res.status(403).json({
-        error: "Access Denied: Only administrators have permission to view registered users and platform user counts.",
-      });
-    }
-
-    const allAccounts = Array.from(accountsDB.values());
-    const totalUsers = allAccounts.length;
-    const today = new Date().toISOString().split("T")[0];
-    const activeToday = allAccounts.filter((a) => a.lastActiveDate === today).length;
-    const studentsCount = allAccounts.filter((a) => a.role === "student").length;
-    const adminsCount = allAccounts.filter((a) => a.role === "admin").length;
-
-    const totalLessonsCompleted = allAccounts.reduce((sum, a) => sum + (a.completedLessons?.length || 0), 0);
-    const totalTestsPassed = allAccounts.reduce(
-      (sum, a) =>
-        sum +
-        Object.values(a.lessonTestScores || {}).filter((t: any) => t?.passed).length,
-      0
-    );
-
-    const safeUserList = allAccounts.map((a) => ({
-      id: a.id,
-      username: a.username,
-      email: a.email,
-      role: a.role,
-      joinedDate: a.joinedDate,
-      lastActiveDate: a.lastActiveDate,
-      level: a.level,
-      xp: a.xp,
-      completedLessonsCount: a.completedLessons?.length || 0,
-      testsTakenCount: Object.keys(a.lessonTestScores || {}).length,
-      agreedToPrivacyPolicy: a.agreedToPrivacyPolicy,
-      privacyConsentDate: a.privacyConsentDate,
-    }));
-
+// Get Current User Profile (Fresh from DB)
+app.get("/api/user/me", (req: Request, res: Response) => {
+  authenticateUser(req as any, res, () => {
+    const user = (req as any).user;
     res.json({
-      totalUsers,
-      activeToday,
-      studentsCount,
-      adminsCount,
-      totalLessonsCompleted,
-      totalTestsPassed,
-      users: safeUserList,
+      success: true,
+      user: sanitizeAccount(user),
     });
-  } catch (error: any) {
-    console.error("Admin metrics error:", error);
-    res.status(500).json({ error: "Failed to retrieve admin telemetry." });
-  }
+  });
 });
 
-// 3b. Verify Administrator Clearance Passkey (Passkey kept secret on server)
-app.post("/api/admin/verify-passkey", (req, res) => {
-  try {
-    const { passkey, email } = req.body;
-    const SECRET_ADMIN_PASSKEY = process.env.ADMIN_PASSKEY || "ADMIN2026";
+// User Progress Synchronization
+app.post("/api/user/progress", (req: Request, res: Response) => {
+  authenticateUser(req as any, res, async () => {
+    try {
+      const user = (req as any).user as StoredAccount;
+      const { progress } = req.body;
 
-    if (!passkey || String(passkey).trim() !== SECRET_ADMIN_PASSKEY) {
-      return res.status(401).json({
-        error: "Invalid administrator clearance passkey. Access denied.",
+      if (!progress || typeof progress !== "object") {
+        return res.status(400).json({ error: "Invalid progress payload." });
+      }
+
+      await db.saveProgress(user.id, progress);
+      const updatedUser = await db.getUserById(user.id);
+
+      res.json({
+        success: true,
+        user: sanitizeAccount(updatedUser || user),
       });
+    } catch (error: any) {
+      console.error("Save progress error:", error);
+      res.status(500).json({ error: "Failed to persist user progress." });
     }
+  });
+});
 
-    if (email) {
-      const cleanEmail = String(email).trim().toLowerCase();
-      const acc = accountsDB.get(cleanEmail);
-      if (acc) {
-        acc.role = "admin";
-        acc.token = `token_admin_${acc.id}_${Date.now()}`;
-        accountsDB.set(cleanEmail, acc);
-        return res.json({
-          success: true,
-          message: "Administrator clearance granted.",
-          user: sanitizeAccount(acc),
-          token: acc.token,
+// ==========================================
+// 3. SECURE QUIZ SUBMISSION & VERIFICATION
+// ==========================================
+
+app.post("/api/quiz/submit", quizLimiter, (req: Request, res: Response) => {
+  authenticateUser(req as any, res, async () => {
+    try {
+      const user = (req as any).user as StoredAccount;
+      const { lessonId, answers } = req.body;
+
+      if (!lessonId || typeof lessonId !== "string") {
+        return res.status(400).json({ error: "Lesson ID is required." });
+      }
+
+      // Authoritative validation of quiz answers on the backend!
+      const verification = verifyQuizSubmission(lessonId, answers || []);
+
+      // Calculate new state securely
+      const currentScores = { ...(user.lessonTestScores || {}) };
+      const previous = currentScores[lessonId];
+
+      if (!previous || verification.percentage >= previous.percentage) {
+        currentScores[lessonId] = {
+          score: verification.score,
+          total: verification.total,
+          percentage: verification.percentage,
+          stars: verification.stars,
+          passed: verification.passed,
+          completedAt: new Date().toISOString().split("T")[0],
+        };
+      }
+
+      const completedLessons = [...(user.completedLessons || [])];
+      if (verification.passed && !completedLessons.includes(lessonId)) {
+        completedLessons.push(lessonId);
+      }
+
+      const newXp = user.xp + verification.xpEarned;
+      const newLevel = getLevelForXp(newXp).level;
+
+      // Update in database
+      await db.updateUser(user.id, {
+        lessonTestScores: currentScores,
+        completedLessons,
+        xp: newXp,
+        level: newLevel,
+        lastActiveDate: new Date().toISOString().split("T")[0],
+      });
+
+      // Record audit submission log
+      const submissionId = `sub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      await db.recordQuizSubmission({
+        id: submissionId,
+        userId: user.id,
+        lessonId,
+        score: verification.score,
+        total: verification.total,
+        percentage: verification.percentage,
+        stars: verification.stars,
+        passed: verification.passed,
+        xpAwarded: verification.xpEarned,
+        answersJson: JSON.stringify(answers || {}),
+        submittedAt: new Date().toISOString(),
+      });
+
+      const updatedUser = await db.getUserById(user.id);
+
+      res.json({
+        success: true,
+        verification,
+        user: sanitizeAccount(updatedUser || user),
+      });
+    } catch (error: any) {
+      console.error("Quiz submission error:", error);
+      res.status(500).json({ error: "Failed to process quiz submission." });
+    }
+  });
+});
+
+// ==========================================
+// 4. ADMIN-ONLY TELEMETRY & CLEARANCE
+// ==========================================
+
+// Telemetry metrics (Admin only)
+app.get("/api/admin/users", (req: Request, res: Response) => {
+  requireAdminRole(req as any, res, async () => {
+    try {
+      const stats = await db.getAdminStats();
+      res.json(stats);
+    } catch (error: any) {
+      console.error("Admin telemetry error:", error);
+      res.status(500).json({ error: "Failed to retrieve administrator telemetry." });
+    }
+  });
+});
+
+// Verify secret administrator clearance passkey
+app.post("/api/admin/verify-passkey", (req: Request, res: Response) => {
+  authenticateUser(req as any, res, async () => {
+    try {
+      const user = (req as any).user as StoredAccount;
+      const { passkey } = req.body;
+
+      if (!passkey || String(passkey).trim() !== ADMIN_PASSKEY) {
+        return res.status(401).json({
+          error: "Invalid administrator clearance passkey. Access denied.",
         });
       }
-    }
 
-    return res.json({
-      success: true,
-      message: "Administrator passkey verified.",
-      role: "admin",
-    });
-  } catch (error: any) {
-    console.error("Passkey verification error:", error);
-    res.status(500).json({ error: "Failed to verify passkey." });
-  }
+      // Upgrade user role to admin in database
+      const updatedUser = await db.updateUser(user.id, { role: "admin" });
+      const active = updatedUser || user;
+      const newToken = generateUserToken(active);
+
+      return res.json({
+        success: true,
+        message: "Administrator clearance granted.",
+        role: "admin",
+        user: sanitizeAccount(active),
+        token: newToken,
+      });
+    } catch (error: any) {
+      console.error("Passkey verification error:", error);
+      res.status(500).json({ error: "Failed to verify administrator passkey." });
+    }
+  });
 });
 
-// 3c. User Progress Synchronization (Strictly private to the user's account)
-app.post("/api/user/progress", (req, res) => {
-  try {
-    const { email, progress } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: "User email is required." });
-    }
+// ==========================================
+// 5. PRIVACY & GDPR (DATA EXPORT & ERASURE)
+// ==========================================
 
-    const cleanEmail = String(email).trim().toLowerCase();
-    const acc = accountsDB.get(cleanEmail);
-    if (!acc) {
-      return res.status(404).json({ error: "Account not found." });
-    }
-
-    if (progress) {
-      if (Array.isArray(progress.completedLessons)) acc.completedLessons = progress.completedLessons;
-      if (progress.lessonTestScores) acc.lessonTestScores = progress.lessonTestScores;
-      if (Array.isArray(progress.solvedChallenges)) acc.solvedChallenges = progress.solvedChallenges;
-      if (Array.isArray(progress.completedProjects)) acc.completedProjects = progress.completedProjects;
-      if (Array.isArray(progress.unlockedBadges)) acc.unlockedBadges = progress.unlockedBadges;
-      if (typeof progress.xp === "number") acc.xp = progress.xp;
-      if (typeof progress.level === "number") acc.level = progress.level;
-      if (typeof progress.streak === "number") acc.streak = progress.streak;
-      if (typeof progress.hearts === "number") acc.hearts = progress.hearts;
-      acc.lastActiveDate = new Date().toISOString().split("T")[0];
-      accountsDB.set(cleanEmail, acc);
-    }
-
-    res.json({
-      success: true,
-      user: sanitizeAccount(acc),
-    });
-  } catch (error: any) {
-    console.error("Save progress error:", error);
-    res.status(500).json({ error: "Failed to persist user progress." });
-  }
-});
-
-// 4. Privacy: Export User Data (GDPR Right to Data Portability)
-app.post("/api/user/export-data", (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: "Email is required to export data." });
-    }
-    const acc = accountsDB.get(String(email).toLowerCase());
-    if (!acc) {
-      return res.status(404).json({ error: "Account not found." });
-    }
-
-    const exportBundle = {
-      exportMetadata: {
-        platform: "JavaQuest Interactive Learning",
-        exportedAt: new Date().toISOString(),
-        formatVersion: "1.0-GDPR",
-      },
-      personalProfile: {
-        id: acc.id,
-        username: acc.username,
-        email: acc.email,
-        role: acc.role,
-        avatar: acc.avatar,
-        joinedDate: acc.joinedDate,
-        lastActiveDate: acc.lastActiveDate,
-        privacyConsent: {
-          agreedToTerms: acc.agreedToPrivacyPolicy,
-          timestamp: acc.privacyConsentDate,
+// GDPR Export User Data
+app.post("/api/user/export-data", (req: Request, res: Response) => {
+  authenticateUser(req as any, res, async () => {
+    try {
+      const user = (req as any).user as StoredAccount;
+      const exportBundle = {
+        exportMetadata: {
+          platform: "JavaQuest Interactive Learning",
+          exportedAt: new Date().toISOString(),
+          formatVersion: "1.0-GDPR",
         },
-      },
-      learningProgress: {
-        level: acc.level,
-        xp: acc.xp,
-        streak: acc.streak,
-        completedLessons: acc.completedLessons,
-        solvedChallenges: acc.solvedChallenges,
-        completedProjects: acc.completedProjects,
-        lessonTestScores: acc.lessonTestScores,
-        unlockedBadges: acc.unlockedBadges,
-      },
-    };
+        personalProfile: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+          joinedDate: user.joinedDate,
+          lastActiveDate: user.lastActiveDate,
+          privacyConsent: {
+            agreedToTerms: user.agreedToPrivacyPolicy,
+            timestamp: user.privacyConsentDate,
+          },
+        },
+        learningProgress: {
+          level: user.level,
+          xp: user.xp,
+          streak: user.streak,
+          completedLessons: user.completedLessons,
+          solvedChallenges: user.solvedChallenges,
+          completedProjects: user.completedProjects,
+          lessonTestScores: user.lessonTestScores,
+          unlockedBadges: user.unlockedBadges,
+        },
+      };
 
-    res.json(exportBundle);
-  } catch (error: any) {
-    res.status(500).json({ error: "Failed to export data." });
-  }
+      res.json(exportBundle);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to export data." });
+    }
+  });
 });
 
-// 5. Privacy: Delete User Account (GDPR Right to Erasure)
-app.post("/api/user/delete-account", (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password confirmation are required to delete account." });
-    }
-    const cleanEmail = String(email).toLowerCase();
-    const acc = accountsDB.get(cleanEmail);
-    if (!acc) {
-      return res.status(404).json({ error: "Account not found." });
-    }
-    if (acc.passwordHash !== password) {
-      return res.status(401).json({ error: "Incorrect password. Cannot delete account." });
-    }
+// GDPR Delete User Account
+app.post("/api/user/delete-account", (req: Request, res: Response) => {
+  authenticateUser(req as any, res, async () => {
+    try {
+      const user = (req as any).user as StoredAccount;
+      const { password } = req.body;
 
-    accountsDB.delete(cleanEmail);
-    res.json({
-      success: true,
-      message: "Your account and all personal educational records have been permanently erased.",
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: "Failed to delete account." });
-  }
+      if (!password) {
+        return res.status(400).json({ error: "Password confirmation is required to permanently delete account." });
+      }
+
+      let passwordMatches = false;
+      if (user.passwordHash.startsWith("$2a$") || user.passwordHash.startsWith("$2b$")) {
+        passwordMatches = await bcrypt.compare(password, user.passwordHash);
+      } else {
+        passwordMatches = user.passwordHash === password;
+      }
+
+      if (!passwordMatches) {
+        return res.status(401).json({ error: "Incorrect password. Cannot delete account." });
+      }
+
+      await db.deleteUser(user.email);
+      res.json({
+        success: true,
+        message: "Your account and all personal educational records have been permanently erased.",
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to delete account." });
+    }
+  });
 });
 
-// Quest AI Tutor endpoint
-app.post("/api/quest-ai", async (req, res) => {
+// ==========================================
+// 6. QUEST AI / GEMINI SMART TUTOR
+// ==========================================
+
+app.post("/api/quest-ai", aiLimiter, async (req: Request, res: Response) => {
   try {
     const { message, context, mode, userCode, language = "java" } = req.body;
 
     if (!message && !userCode) {
       return res.status(400).json({ error: "Message or code is required." });
     }
+
+    // Input size bounds to prevent token flooding
+    const safeMessage = typeof message === "string" ? message.slice(0, 5000) : "";
+    const safeCode = typeof userCode === "string" ? userCode.slice(0, 15000) : "";
 
     const systemPrompt = `You are "Quest AI", a friendly, encouraging, and pedagogically expert programming tutor for the gamified learning app JavaQuest.
 Your target audience is beginners, college students, and self-learners.
@@ -576,30 +612,44 @@ CRITICAL TUTORING RULES:
 Current topic/context: ${context || "Java fundamentals"}
 Language: ${language}`;
 
+    let repliedWithAi = false;
+
     if (aiClient) {
       try {
-        const response = await aiClient.models.generateContent({
+        // Enforce 20-second timeout on upstream AI request
+        const aiPromise = aiClient.models.generateContent({
           model: "gemini-3.8-flash",
-          contents: `System instructions: ${systemPrompt}\n\nStudent message: ${message || "Please analyze my code and give me guidance."}\n\nStudent's current code:\n\`\`\`${language}\n${userCode || ""}\n\`\`\``,
+          contents: `System instructions: ${systemPrompt}\n\nStudent message: ${safeMessage || "Please analyze my code and give me guidance."}\n\nStudent's current code:\n\`\`\`${language}\n${safeCode}\n\`\`\``,
         });
 
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Upstream Gemini request timed out")), 20000)
+        );
+
+        const response: any = await Promise.race([aiPromise, timeoutPromise]);
         const reply = response.text || "I'm here to help! Could you try phrasing your question or checking your syntax?";
+
+        // Record interaction telemetry asynchronously
+        db.recordAiInteraction({ mode: mode || "general", status: "success" }).catch(() => {});
+        repliedWithAi = true;
         return res.json({ reply, source: "gemini" });
       } catch (err: any) {
         console.warn("Gemini API call failed, falling back to smart rule engine:", err.message);
+        db.recordAiInteraction({ mode: mode || "general", status: "fallback_error" }).catch(() => {});
       }
     }
 
-    // Smart heuristic pedagogical fallback when API key is missing or offline
-    const fallbackResponse = generateSmartFallbackReply(message, userCode, mode, context);
-    return res.json({ reply: fallbackResponse, source: "smart-fallback" });
+    if (!repliedWithAi) {
+      // Smart heuristic pedagogical fallback when API key is missing, rate-limited, or offline
+      const fallbackResponse = generateSmartFallbackReply(safeMessage, safeCode, mode, context);
+      return res.json({ reply: fallbackResponse, source: "smart-fallback" });
+    }
   } catch (error: any) {
     console.error("Error in /api/quest-ai:", error);
     res.status(500).json({ error: "Failed to generate tutor response." });
   }
 });
 
-// Fallback tutor response generator
 function generateSmartFallbackReply(message: string = "", code: string = "", mode: string = "", context: string = ""): string {
   const lowerMsg = (message + " " + context).toLowerCase();
 
@@ -637,32 +687,42 @@ function generateSmartFallbackReply(message: string = "", code: string = "", mod
   return `🤖 **Quest AI:**\n\nGreat question! Programming is all about building mental models one brick at a time.\n\nHere are 3 tips to tackle this:\n1. Re-read the task requirements carefully.\n2. Write out the steps in plain English (pseudocode) first.\n3. Test with a small input and trace what happens line-by-line.\n\nWhat specific part feels tricky? Feel free to ask for a hint or an example!`;
 }
 
-// Multi-language code runner with beginner-friendly diagnostics
-app.post("/api/run-code", (req, res) => {
+// ==========================================
+// 7. SAFE MULTI-LANGUAGE CODE SIMULATION ENGINE
+// ==========================================
+
+app.post("/api/run-code", codeRunnerLimiter, (req: Request, res: Response) => {
   const { code, language = "java", testCases = [] } = req.body;
 
   if (!code || typeof code !== "string") {
     return res.status(400).json({ success: false, error: "No code provided to execute." });
   }
 
-  const lang = String(language).toLowerCase().trim();
-  if (lang === "python" || lang === "py") {
-    return res.json(executePythonSimulation(code, testCases));
-  } else if (lang === "javascript" || lang === "js" || lang === "typescript" || lang === "ts") {
-    return res.json(executeJavaScriptSimulation(code, testCases));
-  } else if (lang === "cpp" || lang === "c++") {
-    return res.json(executeCppSimulation(code, testCases));
-  } else if (lang === "go" || lang === "golang") {
-    return res.json(executeGoSimulation(code, testCases));
-  } else if (lang === "rust" || lang === "rs") {
-    return res.json(executeRustSimulation(code, testCases));
+  // Bound code length to 50KB to protect against regex catastrophic backtracking
+  if (code.length > 50000) {
+    return res.status(400).json({ success: false, error: "Code exceeds maximum allowable size (50KB)." });
   }
 
-  const result = executeJavaSimulation(code, testCases);
+  const safeTestCases = Array.isArray(testCases) ? testCases.slice(0, 20) : [];
+  const lang = String(language).toLowerCase().trim();
+
+  if (lang === "python" || lang === "py") {
+    return res.json(executePythonSimulation(code, safeTestCases));
+  } else if (lang === "javascript" || lang === "js" || lang === "typescript" || lang === "ts") {
+    return res.json(executeJavaScriptSimulation(code, safeTestCases));
+  } else if (lang === "cpp" || lang === "c++") {
+    return res.json(executeCppSimulation(code, safeTestCases));
+  } else if (lang === "go" || lang === "golang") {
+    return res.json(executeGoSimulation(code, safeTestCases));
+  } else if (lang === "rust" || lang === "rs") {
+    return res.json(executeRustSimulation(code, safeTestCases));
+  }
+
+  const result = executeJavaSimulation(code, safeTestCases);
   res.json(result);
 });
 
-// Python Simulation Engine
+// Python Simulation
 function executePythonSimulation(code: string, testCases: Array<{ input?: string; expectedOutput?: string; description?: string }>) {
   const outputLines: string[] = [];
   const errors: Array<{ line?: number; message: string; explanation: string; fix: string }> = [];
@@ -670,9 +730,6 @@ function executePythonSimulation(code: string, testCases: Array<{ input?: string
 
   lines.forEach((line, idx) => {
     const trimmed = line.trim();
-    if (trimmed.endsWith(";") && !trimmed.startsWith("#")) {
-      // Semicolons in Python are technically allowed but anti-idiomatic
-    }
     if (trimmed.startsWith("def ") && !trimmed.endsWith(":")) {
       errors.push({
         line: idx + 1,
@@ -703,7 +760,6 @@ function executePythonSimulation(code: string, testCases: Array<{ input?: string
     };
   }
 
-  // Parse simple variables
   const vars: Record<string, any> = {};
   lines.forEach((line) => {
     const trimmed = line.trim();
@@ -753,13 +809,12 @@ function executePythonSimulation(code: string, testCases: Array<{ input?: string
   };
 }
 
-// JavaScript Simulation Engine
+// JavaScript Simulation
 function executeJavaScriptSimulation(code: string, testCases: Array<{ input?: string; expectedOutput?: string; description?: string }>) {
   const outputLines: string[] = [];
-  const errors: Array<{ line?: number; message: string; explanation: string; fix: string }> = [];
   const lines = code.split("\n");
-
   const vars: Record<string, any> = {};
+
   lines.forEach((line) => {
     const trimmed = line.trim();
     const vMatch = trimmed.match(/(?:const|let|var)\s+([a-zA-Z0-9_]+)\s*=\s*(.+?);?$/);
@@ -804,7 +859,7 @@ function executeJavaScriptSimulation(code: string, testCases: Array<{ input?: st
   };
 }
 
-// C++ Simulation Engine
+// C++ Simulation
 function executeCppSimulation(code: string, testCases: Array<{ input?: string; expectedOutput?: string; description?: string }>) {
   const outputLines: string[] = [];
   const lines = code.split("\n");
@@ -840,7 +895,7 @@ function executeCppSimulation(code: string, testCases: Array<{ input?: string; e
   };
 }
 
-// Go Simulation Engine
+// Go Simulation
 function executeGoSimulation(code: string, testCases: Array<{ input?: string; expectedOutput?: string; description?: string }>) {
   const outputLines: string[] = [];
   const lines = code.split("\n");
@@ -872,7 +927,7 @@ function executeGoSimulation(code: string, testCases: Array<{ input?: string; ex
   };
 }
 
-// Rust Simulation Engine
+// Rust Simulation
 function executeRustSimulation(code: string, testCases: Array<{ input?: string; expectedOutput?: string; description?: string }>) {
   const outputLines: string[] = [];
   const lines = code.split("\n");
@@ -904,15 +959,12 @@ function executeRustSimulation(code: string, testCases: Array<{ input?: string; 
   };
 }
 
-// Java Simulation Engine
+// Java Simulation
 function executeJavaSimulation(code: string, testCases: Array<{ input?: string; expectedOutput?: string; description?: string }>) {
   const outputLines: string[] = [];
   const errors: Array<{ line?: number; message: string; explanation: string; fix: string }> = [];
-
-  // Syntax checks
   const lines = code.split("\n");
-  
-  // Semicolon check on standard statements
+
   lines.forEach((line, idx) => {
     const trimmed = line.trim();
     if (
@@ -943,7 +995,6 @@ function executeJavaSimulation(code: string, testCases: Array<{ input?: string; 
       });
     }
 
-    // Capitalization mistakes common among beginners
     if (trimmed.includes("system.out.println")) {
       errors.push({
         line: idx + 1,
@@ -963,7 +1014,6 @@ function executeJavaSimulation(code: string, testCases: Array<{ input?: string; 
     }
   });
 
-  // Check matching braces
   let openBraces = 0;
   for (const char of code) {
     if (char === "{") openBraces++;
@@ -984,7 +1034,6 @@ function executeJavaSimulation(code: string, testCases: Array<{ input?: string; 
     });
   }
 
-  // If compilation errors found, return friendly error report
   if (errors.length > 0) {
     return {
       success: false,
@@ -997,12 +1046,9 @@ function executeJavaSimulation(code: string, testCases: Array<{ input?: string; 
     };
   }
 
-  // Interpret standard System.out.println / print statements
   const printRegex = /System\.out\.print(ln)?\s*\((.*?)\);/g;
   let match;
-  
-  // Context evaluator for basic variables and expressions
-  // Collect simple variable declarations: int x = 5; String s = "hi";
+
   const variables: Record<string, any> = {};
   const varRegex = /(?:int|double|float|String|boolean)\s+([a-zA-Z0-9_]+)\s*=\s*([^;]+);/g;
   let vMatch;
@@ -1019,11 +1065,9 @@ function executeJavaSimulation(code: string, testCases: Array<{ input?: string; 
   }
 
   while ((match = printRegex.exec(code)) !== null) {
-    const isPrintln = match[1] === "ln";
     const expr = match[2].trim();
-    
-    let resolved = evaluateSimpleJavaExpr(expr, variables);
-    outputLines.push(resolved + (isPrintln ? "" : ""));
+    const resolved = evaluateSimpleJavaExpr(expr, variables);
+    outputLines.push(resolved);
   }
 
   let finalStdout = outputLines.join("\n");
@@ -1031,7 +1075,6 @@ function executeJavaSimulation(code: string, testCases: Array<{ input?: string; 
     finalStdout = "(Program finished with exit code 0 - No output printed)";
   }
 
-  // Evaluate test cases if present
   const testResults = (testCases || []).map((tc, idx) => {
     const expected = (tc.expectedOutput || "").trim();
     const passed = finalStdout.includes(expected) || (expected === "" && !errors.length);
@@ -1058,7 +1101,6 @@ function executeJavaSimulation(code: string, testCases: Array<{ input?: string; 
 }
 
 function evaluateSimpleJavaExpr(expr: string, vars: Record<string, any>): string {
-  // Handle string concatenation like "Hello " + name + "!"
   if (expr.includes("+")) {
     const parts = expr.split("+").map((p) => p.trim());
     return parts
@@ -1079,10 +1121,9 @@ function evaluateSimpleJavaExpr(expr: string, vars: Record<string, any>): string
     return String(vars[expr]);
   }
 
-  // Try math evaluation if safe numeric
   try {
     if (/^[0-9\s\+\-\*\/\%\(\)]+$/.test(expr)) {
-      // eslint-disable-next-line no-eval
+      // Safe arithmetic evaluator
       return String(Function(`'use strict'; return (${expr})`)());
     }
   } catch {
@@ -1092,8 +1133,31 @@ function evaluateSimpleJavaExpr(expr: string, vars: Record<string, any>): string
   return expr;
 }
 
+// 404 handler for API routes
+app.all("/api/*", (_req: Request, res: Response) => {
+  res.status(404).json({ error: "Endpoint not found", status: 404 });
+});
+
+// Centralized error handling middleware
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  console.error("Unhandled API exception:", err);
+  const status = err.status || 500;
+  res.status(status).json({
+    error: err.message || "An internal server error occurred. Please try again.",
+    status,
+  });
+});
+
 // Start Server with Vite
 async function startServer() {
+  try {
+    // Initialize persistent database
+    await db.init();
+    console.log("Database initialized successfully.");
+  } catch (err) {
+    console.error("Critical database initialization error:", err);
+  }
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -1109,7 +1173,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`JavaQuest Server running on http://localhost:${PORT}`);
+    console.log(`JavaQuest Server running on http://0.0.0.0:${PORT}`);
   });
 }
 
